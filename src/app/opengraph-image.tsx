@@ -1,13 +1,12 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { SITE } from "@/lib/site";
+import { OG_ICON_MARK_BASE64 } from "@/lib/og-icon-mark";
 
 export const alt = `${SITE.name} — ${SITE.tagline}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const iconMark = readFileSync(join(process.cwd(), "public", "icon-mark.png")).toString("base64");
+const iconMark = OG_ICON_MARK_BASE64;
 
 /** The default social card: ink ground, mint accent, the tagline — the Editorial system's dark chapter. */
 export default function OpenGraphImage() {

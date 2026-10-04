@@ -1,14 +1,13 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { repositories } from "@/data/repositories";
+import { OG_ICON_MARK_BASE64 } from "@/lib/og-icon-mark";
 import { formatDateRange } from "@/lib/utils";
 
 export const alt = "Fest on Plansphere";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const iconMark = readFileSync(join(process.cwd(), "public", "icon-mark.png")).toString("base64");
+const iconMark = OG_ICON_MARK_BASE64;
 
 /** A fest's social card: name, college, dates, live counts. */
 export default async function FestOpenGraphImage({ params }: { params: Promise<{ festSlug: string }> }) {
