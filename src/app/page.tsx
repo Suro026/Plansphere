@@ -7,9 +7,9 @@ import "./landing.css";
 
 /** Same three stages the reference's rotating hero orbit cycles through. */
 const ORBIT_FEATURES: readonly OrbitFeature[] = [
-  { eyebrow: "01 / CONFIGURE", title: "Register & configure", copy: "Fest setup, solo or team forms, schedules and capacity — in one flow.", icon: "✦" },
-  { eyebrow: "02 / RUN LIVE", title: "Run live operations", copy: "Offline QR check-in, meal scans, volunteer shifts, and live scoring.", icon: "◌" },
-  { eyebrow: "03 / CERTIFY", title: "Results & certificates", copy: "Publish results, auto-generate certificates, verify without login.", icon: "✳" },
+  { eyebrow: "01 / CONFIGURE", title: "Register & Configure", copy: "A college registers its fest, builds events with registration forms (solo/team), sets pricing and capacity.", icon: "✦" },
+  { eyebrow: "02 / RUN LIVE", title: "Run Live Operations", copy: "QR ticket check-in at the gate and meals (works offline), volunteer shift rostering, live tournament scoring with public scoreboards.", icon: "◌" },
+  { eyebrow: "03 / CERTIFY", title: "Results & Certificates", copy: "Publish results, auto-generate certificates that anyone can verify by number, no login needed.", icon: "✳" },
 ];
 
 export const metadata: Metadata = {
