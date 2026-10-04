@@ -175,7 +175,6 @@ Useful scripts:
 |---|---|
 | `npm run verify:admin` | Checks `FIREBASE_SERVICE_ACCOUNT` parses and can reach Auth + Firestore |
 | `npm run grant-super-admin -- you@college.edu` | Seeds the first super admin (staff accounts are invite-only) |
-| `npm run seed:demo` | Writes demo fests/events so the pages have something to show |
 | `npm run firebase:deploy` | Deploys `firestore.rules` and indexes via the service account — no `firebase login` needed |
 | `npm audit` | Dependency advisories; `package.json` `overrides` pin `uuid`/`postcss` to patched lines inside `firebase-admin`/`next` (see `docs/SECURITY-ENV.md`) |
 | `npm run scan:secrets` | Fails on any secret-shaped string in tracked files (also a CI step); `-- --history` scans every commit. See `docs/SECURITY-ENV.md` |
@@ -271,6 +270,4 @@ revocation checking and re-reads the account's `disabled` flag on every call.
 
 ## Further reading
 
-- [`FRONTEND_FEATURES.md`](FRONTEND_FEATURES.md) — a page-by-page inventory of what's built
-- [`LAUNCH_AUDIT.md`](LAUNCH_AUDIT.md) — launch-readiness audit, with file-level evidence for every item
 - [`docs/SECURITY-ENV.md`](docs/SECURITY-ENV.md) — secrets handling and the dependency overrides in `package.json`

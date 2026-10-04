@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit",
     "verify:admin": "node --env-file=.env.local scripts/verify-admin.mjs",
     "grant-super-admin": "node --env-file=.env.local scripts/grant-super-admin.mjs",
-    "seed:demo": "node --env-file=.env.local scripts/seed-demo.mjs",
     "firebase:deploy": "node --env-file=.env.local scripts/deploy-firebase.mjs",
     "migrate:accounts": "node --env-file=.env.local scripts/migrate-accounts.mjs",
     "inspect:accounts": "node --env-file=.env.local scripts/inspect-accounts.mjs",
