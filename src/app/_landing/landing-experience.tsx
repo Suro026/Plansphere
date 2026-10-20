@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowDown,
@@ -11,8 +12,6 @@ import {
   Grid3x3,
   Menu,
   Moon,
-  Orbit,
-  Play,
   X,
 } from "lucide-react";
 import { PublicAuthControls } from "@/components/shell/signed-out-only";
@@ -40,19 +39,37 @@ const SITE_LEGAL_NAME = SITE.legalName;
  *     generated for this port (see scripts/generate-hero-orbit.mjs) in place
  *     of the reference's Manus-storage-hosted file, which this repo has no
  *     access to — same crop, size, position, opacity and counter-rotation;
- *   - the nav's third link is "For colleges", matching the reference's own
- *     `href="#colleges"` (the anchor on the events section below) — not a
- *     link to the separate `/for-colleges` marketing page;
+ *   - the nav leads with the two audiences' real destinations — "Explore
+ *     events" (`/explore`) and "For organizers" (`/for-colleges`) — plus
+ *     "How it works" (`#flow`); the reference's "Platform" / "For colleges"
+ *     anchors didn't tell a first-time visitor which side of the product
+ *     they were on;
+ *   - the hero names both paths (organizers → `/register-event`, students →
+ *     `/explore`) instead of one mislabelled button, and the wordmark is the
+ *     real `/logo.png` (the shared `Brand` asset) rather than a stand-in icon;
  *   - the mobile menu gets one addition the reference doesn't have: real
  *     sign-in access, since the reference's own mobile menu has no auth at
  *     all (its desktop login is also just a toast).
  */
 
 const navItems = [
-  { label: "Platform", href: "#platform" },
-  { label: "The flow", href: "#flow" },
-  { label: "For colleges", href: "#colleges" },
+  { label: "Explore events", href: "/explore" },
+  { label: "For organizers", href: "/for-colleges" },
+  { label: "How it works", href: "#flow" },
 ] as const;
+
+function NavLink({ href, className, onClick, children }: { href: string; className?: string; onClick?: () => void; children: React.ReactNode }) {
+  // In-page anchors stay plain <a> (smooth scroll via CSS/UA); routes use <Link>.
+  return href.startsWith("#") ? (
+    <a href={href} className={className} onClick={onClick}>
+      {children}
+    </a>
+  ) : (
+    <Link href={href} className={className} onClick={onClick}>
+      {children}
+    </Link>
+  );
+}
 
 export interface OrbitFeature {
   eyebrow: string;
@@ -65,13 +82,13 @@ function go(id: string) {
   document.querySelector(id)?.scrollIntoView({ behavior: "smooth" });
 }
 
-function Logo({ inverted = false }: { inverted?: boolean }) {
+function Logo({ inverted = false, priority = false }: { inverted?: boolean; priority?: boolean }) {
   return (
     <Link href="/" className={`logo-mark ${inverted ? "logo-inverted" : ""}`} aria-label="Plansphere home">
-      <span className="logo-orb">
-        <Orbit size={15} strokeWidth={2.2} />
-      </span>
-      <span>Plansphere</span>
+      {/* The official logo, unaltered. It is dark ink on transparent, so on the
+          dark nav/footer `.logo-inverted` gives it a light backing instead of
+          recolouring it. */}
+      <Image src="/logo.png" alt="" width={128} height={64} priority={priority} className="logo-image" />
     </Link>
   );
 }
@@ -80,13 +97,15 @@ function Action({
   children,
   href,
   dark = false,
+  outline = false,
 }: {
   children: React.ReactNode;
   href: string;
   dark?: boolean;
+  outline?: boolean;
 }) {
   return (
-    <Link href={href} className={`action-button ${dark ? "action-dark" : ""}`}>
+    <Link href={href} className={`action-button ${dark ? "action-dark" : ""} ${outline ? "action-outline" : ""}`}>
       <span>{children}</span>
       <ArrowUpRight size={15} />
     </Link>
@@ -158,12 +177,12 @@ export function LandingExperience({
 
       <header className={`minimal-nav ${scrolled ? "nav-scrolled" : ""}`}>
         <div className="nav-inner minimal-nav-inner">
-          <Logo inverted={scrolled} />
+          <Logo inverted={scrolled} priority />
           <nav className="minimal-desktop-nav" aria-label="Main navigation">
             {navItems.map((item) => (
-              <a key={item.href} href={item.href}>
+              <NavLink key={item.href} href={item.href}>
                 {item.label}
-              </a>
+              </NavLink>
             ))}
           </nav>
           <div className="minimal-nav-actions">
@@ -172,16 +191,16 @@ export function LandingExperience({
             </button>
             <PublicAuthControls variant="landing" />
           </div>
-          <button type="button" className="minimal-menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
+          <button type="button" className="minimal-menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen}>
             {menuOpen ? <X size={19} /> : <Menu size={19} />}
           </button>
         </div>
         {menuOpen && (
           <div className="minimal-mobile-menu">
             {navItems.map((item) => (
-              <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>
+              <NavLink key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>
                 {item.label}
-              </a>
+              </NavLink>
             ))}
             <button type="button" onClick={() => setPaletteOpen(true)}>
               <Command size={14} /> Open command palette
@@ -199,7 +218,7 @@ export function LandingExperience({
           <div className="minimal-hero-copy">
             <div className="editorial-kicker">
               <span>PLATFORM / 001</span>
-              <span>EVENTS, WITHOUT THE NOISE</span>
+              <span>COLLEGE EVENTS, END TO END</span>
             </div>
             <h1>
               Make the
@@ -208,23 +227,26 @@ export function LandingExperience({
               <br />
               <em>matter.</em>
             </h1>
-            <p>Plansphere is the quiet system behind loud, unforgettable events.</p>
+            <p>
+              Plansphere is where colleges register and run their fests, and where students find events, sign up and
+              keep their tickets.
+            </p>
             <div className="minimal-hero-actions">
-              <Action href="/register-event">Explore Plansphere</Action>
-              <button type="button" className="play-link" onClick={() => go("#flow")}>
-                <span>
-                  <Play size={10} fill="currentColor" />
-                </span>{" "}
-                See the flow
-              </button>
-            </div>
-            <div className="hero-footnote">
-              <span className="footnote-line" /> Built for the people who make campus come alive.
+              <div className="hero-path">
+                <Action href="/register-event">Register Your Event</Action>
+                <span className="hero-path-note">For organizers: create and manage your fest.</span>
+              </div>
+              <div className="hero-path">
+                <Action href="/explore" outline>
+                  Explore Events
+                </Action>
+                <span className="hero-path-note">For students: discover events and register.</span>
+              </div>
             </div>
           </div>
 
           <div className="minimal-hero-art">
-            <div className="hero-art-label label-top">
+            <div className="hero-art-label label-top" aria-hidden="true">
               <span>PS / 2026</span>
               <span>01—03</span>
             </div>
@@ -276,7 +298,7 @@ export function LandingExperience({
                 <ArrowRight size={13} />
               </div>
             </div>
-            <div className="hero-art-label label-bottom">
+            <div className="hero-art-label label-bottom" aria-hidden="true">
               <span>
                 EVERYTHING
                 <br />
