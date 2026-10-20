@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowDown,
-  ArrowRight,
   ArrowUpRight,
   Command,
   Eye,
@@ -123,13 +122,9 @@ export function LandingExperience({
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [quietMode, setQuietMode] = React.useState(false);
   const [scrolled, setScrolled] = React.useState(false);
-  const [activeFeature, setActiveFeature] = React.useState(0);
   const [cursor, setCursor] = React.useState({ x: 0, y: 0 });
-  const reduceMotionRef = React.useRef(false);
 
   React.useEffect(() => {
-    reduceMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
     const onScroll = () => setScrolled(window.scrollY > 65);
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -154,13 +149,6 @@ export function LandingExperience({
     };
   }, []);
 
-  React.useEffect(() => {
-    if (reduceMotionRef.current) return;
-    const timer = window.setInterval(() => setActiveFeature((feature) => (feature + 1) % features.length), 4200);
-    return () => window.clearInterval(timer);
-  }, [features.length]);
-
-  const cycleFeature = () => setActiveFeature((feature) => (feature + 1) % features.length);
   const shellStyle = { "--cursor-x": `${cursor.x}px`, "--cursor-y": `${cursor.y}px` } as React.CSSProperties;
 
   return (
@@ -217,15 +205,14 @@ export function LandingExperience({
         <div className="page-width minimal-hero-grid">
           <div className="minimal-hero-copy">
             <div className="editorial-kicker">
-              <span>PLATFORM / 001</span>
               <span>COLLEGE EVENTS, END TO END</span>
             </div>
             <h1>
-              Make the
+              Every fest,
               <br />
-              <span>moment</span>
+              <span>start to</span>
               <br />
-              <em>matter.</em>
+              <em>finish.</em>
             </h1>
             <p>
               Plansphere is where colleges register and run their fests, and where students find events, sign up and
@@ -246,21 +233,7 @@ export function LandingExperience({
           </div>
 
           <div className="minimal-hero-art">
-            <div className="hero-art-label label-top" aria-hidden="true">
-              <span>PS / 2026</span>
-              <span>01—03</span>
-            </div>
-            <div
-              className="hero-orbit-art"
-              role="button"
-              tabIndex={0}
-              aria-label="Rotate through Plansphere features"
-              style={{ "--active-feature": activeFeature } as React.CSSProperties}
-              onClick={cycleFeature}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") cycleFeature();
-              }}
-            >
+            <div className="hero-orbit-art">
               <div className="art-circle art-circle-back" />
               <div className="art-circle art-circle-main" />
               <div className="art-ring ring-a" />
@@ -271,44 +244,24 @@ export function LandingExperience({
               <div className="art-dot dot-b" />
               <div className="art-star star-a" />
               <div className="art-star star-b" />
-              <div className="art-number">0{activeFeature + 1}</div>
-              {/* eslint-disable-next-line @next/next/no-img-element -- exact reference treatment (filter/mix-blend-mode on a plain <img>) */}
-              <img src="/hero-orbit.jpg" alt="Abstract event energy" />
+              {/* eslint-disable-next-line @next/next/no-img-element -- filter/mix-blend-mode treatment on a plain <img> */}
+              <img src="/hero-orbit.jpg" alt="" />
               {features.map((feature, index) => (
-                <button
-                  type="button"
-                  key={feature.eyebrow}
-                  className={`sphere-feature feature-${index} ${activeFeature === index ? "feature-active" : ""}`}
-                  aria-label={`Show ${feature.title}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setActiveFeature(index);
-                  }}
-                >
-                  <span className="feature-icon">{feature.icon}</span>
+                <div key={feature.eyebrow} className={`sphere-feature feature-${index} feature-active`}>
+                  <span className="feature-icon" aria-hidden="true">
+                    {feature.icon}
+                  </span>
                   <span>
                     <b>{feature.eyebrow}</b>
                     <strong>{feature.title}</strong>
                     <small>{feature.copy}</small>
                   </span>
-                </button>
+                </div>
               ))}
-              <div className="sphere-rotate-hint">
-                <span>click to rotate</span>
-                <ArrowRight size={13} />
-              </div>
-            </div>
-            <div className="hero-art-label label-bottom" aria-hidden="true">
-              <span>
-                EVERYTHING
-                <br />
-                IN MOTION
-              </span>
-              <span className="tiny-arrow">↗</span>
             </div>
           </div>
         </div>
-        <button type="button" className="minimal-scroll-cue" onClick={() => go("#signal")}>
+        <button type="button" className="minimal-scroll-cue" onClick={() => go("#events")}>
           <ArrowDown size={14} />
           <span>SCROLL TO BEGIN</span>
         </button>
@@ -364,11 +317,11 @@ export function LandingExperience({
                 type="button"
                 onClick={() => {
                   setPaletteOpen(false);
-                  go("#platform");
+                  go("#events");
                 }}
               >
                 <Grid3x3 size={16} />
-                <span>Explore the platform</span>
+                <span>See ongoing events</span>
                 <small>⌘ 1</small>
               </button>
               <button

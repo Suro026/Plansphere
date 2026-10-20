@@ -1,68 +1,44 @@
 import { cache } from "react";
 import { repositories } from "@/data/repositories";
 import type { Fest } from "@/core/models/fest";
-import { DashboardSection, EventsSection } from "./sections";
+import { EventsSection } from "./sections";
 
-export interface HomeData {
-  /** Every published fest, soonest first. */
-  fests: Fest[];
-  /** Up to three: live now, then upcoming; if neither exists, the most recent. */
-  featured: Fest[];
-  liveCount: number;
-  registrations: number;
-  checkIns: number;
-  /** Check-ins over registrations, only across fests that have started. Null until a fest has recorded check-ins. */
-  attendancePct: number | null;
-  /** Registrations per fest in date order, for the graph. Empty when there is nothing real to draw. */
-  series: number[];
-  liveFest: Fest | null;
-  nextFest: Fest | null;
-  /** "Saturday, March 14" in India time. */
-  dateLabel: string;
+export type FestPhase = "live" | "upcoming" | "ended";
+
+export interface HomeFest {
+  fest: Fest;
+  phase: FestPhase;
 }
 
 const IST = "Asia/Kolkata";
+const MAX_SHOWN = 6;
 
-/** One read per render, shared by the dashboard and the events grid. */
-export const getHomeData = cache(async (): Promise<HomeData> => {
+/**
+ * What the landing page shows right after the hero: fests that are on right
+ * now, then the soonest upcoming ones — public fests only (`listPublished`
+ * already applies visibility). If nothing is live or upcoming, the most recent
+ * fests are shown, labelled as ended, so the section is never an empty promise.
+ * One read per render.
+ */
+export const getHomeFests = cache(async (): Promise<HomeFest[]> => {
   const published = await repositories().fests.listPublished().catch(() => [] as Fest[]);
   const fests = [...published].sort((a, b) => a.startDate.localeCompare(b.startDate));
   const today = new Date().toLocaleDateString("en-CA", { timeZone: IST });
 
   const live = fests.filter((f) => f.startDate <= today && f.endDate >= today);
   const upcoming = fests.filter((f) => f.startDate > today);
-  const featured = [...live, ...upcoming].slice(0, 3);
-  if (!featured.length) featured.push(...[...fests].reverse().slice(0, 3));
+  const shown: HomeFest[] = [
+    ...live.map((fest) => ({ fest, phase: "live" as const })),
+    ...upcoming.map((fest) => ({ fest, phase: "upcoming" as const })),
+  ].slice(0, MAX_SHOWN);
+  if (shown.length) return shown;
 
-  const registrations = fests.reduce((n, f) => n + f.stats.registrations, 0);
-  const checkIns = fests.reduce((n, f) => n + f.stats.checkIns, 0);
-  const started = fests.filter((f) => f.startDate <= today);
-  const startedRegistrations = started.reduce((n, f) => n + f.stats.registrations, 0);
-  const startedCheckIns = started.reduce((n, f) => n + f.stats.checkIns, 0);
-  const attendancePct =
-    startedRegistrations > 0 && startedCheckIns > 0
-      ? Math.min(100, Math.round((startedCheckIns / startedRegistrations) * 100))
-      : null;
-
-  return {
-    fests,
-    featured,
-    liveCount: live.length,
-    registrations,
-    checkIns,
-    attendancePct,
-    series: fests.slice(-12).map((f) => f.stats.registrations),
-    liveFest: live[0] ?? null,
-    nextFest: upcoming[0] ?? null,
-    dateLabel: new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: IST }).format(new Date()),
-  };
+  return [...fests]
+    .reverse()
+    .slice(0, 3)
+    .map((fest) => ({ fest, phase: "ended" as const }));
 });
 
-export async function HomeDashboard() {
-  return <DashboardSection data={await getHomeData()} />;
-}
-
 export async function HomeEvents() {
-  const { featured } = await getHomeData();
-  return <EventsSection fests={featured} />;
+  return <EventsSection items={await getHomeFests()} />;
 }
