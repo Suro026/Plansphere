@@ -1,4 +1,5 @@
-import { createArenaMatchSchema } from "@/core/models/match";
+import { createArenaMatchSchema, type MatchConfig } from "@/core/models/match";
+import { getScoringEngine } from "@/core/services/scoring";
 import { ApiError, handler, ok, readBody, requireFestAccess, requirePermission } from "@/server/api";
 import { audit } from "@/server/audit";
 import { COLLECTIONS, FieldValue, adminDb } from "@/server/firebase-admin";
@@ -30,6 +31,7 @@ export const POST = handler(async (request) => {
     arenaName = String(arenaSnap.data()?.name ?? "");
   }
 
+  const matchConfig = (event.matchConfig ?? { durationType: "points", maxPlayers: 11 }) as MatchConfig;
   const countSnap = await db.collection(COLLECTIONS.matches).where("eventId", "==", input.eventId).count().get();
 
   const ref = db.collection(COLLECTIONS.matches).doc();
@@ -49,8 +51,9 @@ export const POST = handler(async (request) => {
       status: "upcoming",
       paused: false,
       sportType: event.sportType,
-      matchConfig: event.matchConfig ?? { durationType: "points", maxPlayers: 11 },
-      score: { home: 0, away: 0, detail: {}, displayHome: "0", displayAway: "0", isComplete: false },
+      matchConfig,
+      // The sport's own starting state, not an empty one: its engine reads keys (cards, overs, sets) from it.
+      score: getScoringEngine(String(event.sportType)).initialState(matchConfig),
       createdBy: caller.uid,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),

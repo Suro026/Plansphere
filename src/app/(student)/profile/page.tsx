@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ImageUploadField } from "@/components/ui/image-upload";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -37,7 +38,8 @@ const maskPhone = (phone?: string) => (phone ? phone.replace(/\d(?=[\d\s]{2}$)|\
 
 /** 4b — Student profile. The three numbers, the account rows, and Edit. */
 export default function ProfilePage() {
-  const { session, profile, refresh, auth } = useAuth();
+  const { session, profile, refresh, auth, signOut } = useAuth();
+  const router = useRouter();
   const repos = useRepositories();
   const { entries } = useMyEntries();
   const { attended } = bucketEntries(entries);
@@ -145,6 +147,19 @@ export default function ProfilePage() {
               <Link href="/admin" className="no-underline">Open the admin side</Link>
             </MetaRow>
           ) : null}
+          {/* The header's account menu is hidden below 640px, so the phone's only way out is here. */}
+          <MetaRow label="Session">
+            <button
+              type="button"
+              className="text-accent"
+              onClick={async () => {
+                await signOut();
+                router.push("/");
+              }}
+            >
+              Sign out
+            </button>
+          </MetaRow>
         </MetaList>
 
         <Kick className="mb-2 mt-[18px]">Teams</Kick>

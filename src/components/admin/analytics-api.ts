@@ -127,7 +127,12 @@ export const usePlatformAudit = (filter: AuditFilter, cursor: string | null) => 
   if (cursor) params.set("cursor", cursor);
   return useQuery({
     queryKey: ["platform-audit", filter.festId, filter.userId, filter.action, filter.from?.getTime(), filter.to?.getTime(), cursor],
-    queryFn: () => api<AuditPage>(`/api/admin/platform/audit?${params.toString()}`),
+    // The API speaks JSON, so `createdAt` arrives as an ISO string; the page (and the
+    // `AuditEntry` type) work in real `Date`s.
+    queryFn: async () => {
+      const page = await api<AuditPage>(`/api/admin/platform/audit?${params.toString()}`);
+      return { ...page, entries: page.entries.map((entry) => ({ ...entry, createdAt: new Date(entry.createdAt) })) };
+    },
     staleTime: 15_000,
   });
 };

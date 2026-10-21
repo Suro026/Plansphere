@@ -208,6 +208,15 @@ describe("roboFightEngine", () => {
     state = apply(roboFightEngine, state, { type: "round_win", side: "away" }, cfg);
     expect(state.isComplete).toBe(true);
   });
+
+  it("scores from a bracket-generated match, whose detail starts empty", () => {
+    // The bracket route writes `detail: {}` rather than calling initialState().
+    const fresh: ScoreState = { home: 0, away: 0, detail: {}, displayHome: "0", displayAway: "0", isComplete: false };
+    const afterPoint = apply(roboFightEngine, fresh, { type: "point", side: "home", payload: { value: 4 } }, cfg);
+    expect((afterPoint.detail as { totalPoints: { home: number; away: number } }).totalPoints).toEqual({ home: 4, away: 0 });
+    const afterRound = apply(roboFightEngine, fresh, { type: "round_win", side: "away" }, cfg);
+    expect(afterRound.away).toBe(1);
+  });
 });
 
 describe("genericPointEngine", () => {

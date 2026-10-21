@@ -8,6 +8,7 @@ import { useArenaMatches, useFestArenas, useMatchLog, useMyScoringArenaIds } fro
 import { ScoreControls } from "@/components/live/score-controls";
 import type { Match, MatchSide } from "@/core/models/match";
 import { isFinalMatch } from "@/core/models/match";
+import { scoreProgress } from "@/core/services/scoring/progress";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/field";
 import { EmptyState, Kick, MetaList, MetaRow, PageHeading, Panel, Skeleton, Tag, Timeline, TimelineItem } from "@/components/ui/primitives";
@@ -139,6 +140,7 @@ const MatchScorer = ({
           </div>
           <div className="text-[15px] font-medium">{match.awayTeam?.name ?? "TBD"}</div>
         </div>
+        {scoreProgress(match.score) ? <div className="mt-1 text-[12.5px] text-neutral-400">{scoreProgress(match.score)}</div> : null}
         <Tag tone={match.status === "live" ? "accent" : match.status === "completed" ? "neutral" : "outline"} className="mt-2">
           {match.paused ? "Paused" : match.status}
         </Tag>

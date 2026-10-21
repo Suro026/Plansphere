@@ -54,14 +54,24 @@ export const timestampsToDates = <T>(value: T): T => {
  * constantly (an untouched optional field), so every write is filtered rather
  * than each call site remembering to.
  */
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (value === null || typeof value !== "object") return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
 export const stripUndefined = <T extends Record<string, unknown>>(value: T): Partial<T> => {
   const out: Record<string, unknown> = {};
 
   for (const [key, item] of Object.entries(value)) {
     if (item === undefined) continue;
 
-    if (item !== null && typeof item === "object" && !Array.isArray(item) && !(item instanceof Date)) {
-      out[key] = stripUndefined(item as Record<string, unknown>);
+    // Only plain objects are walked. Anything else — a `serverTimestamp()` or
+    // `increment()` sentinel, a `Timestamp`, a `Date` — must reach Firestore as
+    // the very same instance: copying a sentinel into a plain object stores it
+    // as a map (`{ _methodName: "serverTimestamp" }`) instead of a timestamp.
+    if (isPlainObject(item)) {
+      out[key] = stripUndefined(item);
       continue;
     }
 

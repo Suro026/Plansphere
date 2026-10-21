@@ -6,6 +6,10 @@ import { COLLECTIONS, FieldValue, adminDb } from "@/server/firebase-admin";
 import { audit } from "@/server/audit";
 import { issueCertificatesForEvent } from "@/server/certificates/issue";
 
+// One PDF and one email per recipient, in sequence: a few dozen certificates
+// already outlast the platform's default function limit.
+export const maxDuration = 300;
+
 /**
  * The release desk.
  *

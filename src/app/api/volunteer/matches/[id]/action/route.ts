@@ -98,7 +98,9 @@ export const POST = handler(async (request, context) => {
       if (!scoreAction) throw ApiError.badRequest("scoreAction is required.");
 
       const engine = getScoringEngine(match.sportType);
-      const { state, label } = engine.applyAction(match.score, scoreAction, match.matchConfig);
+      // A match created before engines seeded their own state has an empty `detail`; give it the sport's defaults.
+      const current = Object.keys(match.score.detail ?? {}).length === 0 ? { ...match.score, detail: engine.initialState(match.matchConfig).detail } : match.score;
+      const { state, label } = engine.applyAction(current, scoreAction, match.matchConfig);
 
       const winSide = state.isComplete ? decideWinner(state) : null;
       const nextRef = winSide ? await readNextMatch() : null;

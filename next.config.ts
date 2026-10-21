@@ -11,6 +11,17 @@ import { withSentryConfig } from "@sentry/nextjs";
  * blocked. Widen this list (never with a wildcard host) before adding a new
  * third-party script or API, not after something breaks in production.
  */
+/**
+ * Only when the app is pointed at the local Firebase emulators (the video-demo
+ * setup, `npm run demo:app`) the browser must be allowed to reach them.
+ * NEXT_PUBLIC_FIREBASE_EMULATOR is never set on Vercel, so the production
+ * policy below is unchanged.
+ */
+const emulatorConnect =
+  process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === "1"
+    ? " http://127.0.0.1:8080 ws://127.0.0.1:8080 http://127.0.0.1:9099 http://localhost:8080 http://localhost:9099"
+    : "";
+
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -24,7 +35,7 @@ const csp = [
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com https://va.vercel-scripts.com https://vercel.live",
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firebase.googleapis.com https://www.google.com https://*.sentry.io https://*.ingest.sentry.io https://vitals.vercel-insights.com https://va.vercel-scripts.com",
+  `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://firebase.googleapis.com https://www.google.com https://*.sentry.io https://*.ingest.sentry.io https://vitals.vercel-insights.com https://va.vercel-scripts.com${emulatorConnect}`,
   "frame-src https://www.google.com https://*.firebaseapp.com",
   "worker-src 'self' blob:",
   "media-src 'self' blob:",

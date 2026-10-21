@@ -295,7 +295,17 @@ export const createEventSchema = z
 
 export type CreateEvent = z.infer<typeof createEventSchema>;
 
-export const updateEventSchema = z.object(eventWritableFields).partial();
+/**
+ * An update names only what it changes. `.partial()` alone is not enough: in
+ * Zod 4 a field's `.default()` still fires when the key is missing, so a
+ * `{ status: "completed" }` body would be parsed into capacity 0, no rules, no
+ * meals, a 1–1 team size — and quietly overwrite the event with them. The
+ * defaults are stripped here so a missing key stays missing.
+ */
+const withoutDefaults = <T extends z.ZodRawShape>(shape: T): T =>
+  Object.fromEntries(Object.entries(shape).map(([key, field]) => [key, field instanceof z.ZodDefault ? field.unwrap() : field])) as unknown as T;
+
+export const updateEventSchema = z.object(withoutDefaults(eventWritableFields)).partial();
 
 export type UpdateEvent = z.infer<typeof updateEventSchema>;
 

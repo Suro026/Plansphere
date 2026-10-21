@@ -6,7 +6,7 @@ import {
   idSchema,
   longTextSchema,
   phoneSchema,
-  shortTextSchema, httpsUrlSchema } from "./common";
+  shortTextSchema, httpsUrlSchema, optionalHttpsUrlSchema } from "./common";
 import { registrationFieldsSchema } from "./registration-fields";
 
 /**
@@ -56,8 +56,8 @@ export const eventHeadSchema = z.object({
   designation: shortTextSchema,
   phone: phoneSchema,
   /** ID card or an authorization letter — proof they're allowed to register on the organization's behalf. Not verified; kept for the record. */
-  idCardUrl: httpsUrlSchema.optional(),
-  linkedin: httpsUrlSchema.optional(),
+  idCardUrl: optionalHttpsUrlSchema,
+  linkedin: optionalHttpsUrlSchema,
 });
 
 export type EventHead = z.infer<typeof eventHeadSchema>;
@@ -238,7 +238,7 @@ export const registerEventSchema = z
     // Step 1 — organization
     organizationName: shortTextSchema,
     organizationType: organizationTypeSchema,
-    organizationWebsite: httpsUrlSchema.optional(),
+    organizationWebsite: optionalHttpsUrlSchema,
     contactEmail: emailSchema,
     city: shortTextSchema,
     state: shortTextSchema,

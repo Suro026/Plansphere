@@ -377,3 +377,57 @@ describe("match lifecycle — scoring, undo, finishing, bracket advancement", ()
     expect(champSnap.size).toBe(1);
   });
 });
+
+describe("every sport engine scores a freshly created match", () => {
+  // Matches used to start with `detail: {}`, which the cards (football), overs
+  // (cricket), sets (volleyball) and round-points (robo fight) engines cannot
+  // read — the first such tap was a 500. They now start from the engine's own state.
+  const act = (id: string, body: Record<string, unknown>) =>
+    callRoute(matchAction, { path: `/api/volunteer/matches/${id}/action`, method: "POST", params: { id }, token: admin.idToken, body });
+
+  const freshMatch = async (sportType: string, matchConfig: Record<string, unknown>) => {
+    await callRoute(updateEvent, { path: "/api/admin/events/ev1", method: "PATCH", params: { id: "ev1" }, token: admin.idToken, body: { liveEnabled: true, sportType, matchConfig } });
+    const created = await callRoute(createMatch, { path: "/api/admin/matches", method: "POST", token: admin.idToken, body: { festId: "fest1", eventId: "ev1", homeTeam: { name: "Alpha", isBye: false }, awayTeam: { name: "Beta", isBye: false } } });
+    expect(created.status).toBe(201);
+    return created.body.match.id as string;
+  };
+
+  it("football: a card is recorded", async () => {
+    const id = await freshMatch("football", { durationType: "time", halves: 2, minutesPerHalf: 20, maxPlayers: 11 });
+    const res = await act(id, { action: "score", scoreAction: { type: "yellow_card", side: "home" } });
+    expect(res.status).toBe(200);
+    expect(res.body.match.score.detail.yellow.home).toBe(1);
+  });
+
+  it("cricket: runs and a wicket are recorded against the batting side", async () => {
+    const id = await freshMatch("cricket", { durationType: "overs", overs: 5, maxPlayers: 8 });
+    const run = await act(id, { action: "score", scoreAction: { type: "run", payload: { runs: 4 } } });
+    expect(run.status).toBe(200);
+    expect(run.body.match.score.displayHome).toBe("4/0");
+    const wicket = await act(id, { action: "score", scoreAction: { type: "wicket" } });
+    expect(wicket.status).toBe(200);
+    expect(wicket.body.match.score.displayHome).toBe("4/1");
+  });
+
+  it("volleyball: a point is recorded in the current set", async () => {
+    const id = await freshMatch("volleyball", { durationType: "sets", sets: 3, pointsPerSet: 25, maxPlayers: 6 });
+    const res = await act(id, { action: "score", scoreAction: { type: "point", side: "away" } });
+    expect(res.status).toBe(200);
+    expect(res.body.match.score.detail.currentSet.away).toBe(1);
+  });
+
+  it("robo fight: points accumulate before any round is won", async () => {
+    const id = await freshMatch("Robo Fight", { durationType: "rounds", rounds: 3, maxPlayers: 5 });
+    const res = await act(id, { action: "score", scoreAction: { type: "point", side: "home", payload: { value: 5 } } });
+    expect(res.status).toBe(200);
+    expect(res.body.match.score.detail.totalPoints.home).toBe(5);
+  });
+
+  it("a match that predates this fix (empty detail) is scored too", async () => {
+    const id = await freshMatch("football", { durationType: "time", halves: 2, minutesPerHalf: 20, maxPlayers: 11 });
+    await adminDb().collection(COLLECTIONS.matches).doc(id).update({ "score.detail": {} });
+    const res = await act(id, { action: "score", scoreAction: { type: "red_card", side: "away" } });
+    expect(res.status).toBe(200);
+    expect(res.body.match.score.detail.red.away).toBe(1);
+  });
+});

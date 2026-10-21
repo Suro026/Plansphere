@@ -58,6 +58,15 @@ export const httpsUrlSchema = z
   .max(2000)
   .url()
   .refine((value) => value.toLowerCase().startsWith("https://"), "Enter an https:// URL");
+/**
+ * An optional https URL typed into a form. An untouched text input submits
+ * `""`, which is "not provided", not "an invalid URL" — so blank (or
+ * whitespace-only) becomes `undefined` before the URL check runs.
+ */
+export const optionalHttpsUrlSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  httpsUrlSchema.optional(),
+);
 export const longTextSchema = z.string().trim().max(5000);
 
 /** `YYYY-MM-DD`, stored as a string so a date has no timezone attached. */

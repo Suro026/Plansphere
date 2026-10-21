@@ -54,6 +54,11 @@ yarn-error.log*
 # Claude Code project configuration (local tooling, not part of the app)
 .claude/
 
+# Video-demo tooling: emulator data, bundled seeder, generated account sheet
+.demo-data/
+.demo-build/
+.demo-accounts.md
+
 # Credentials that must never be committed
 firebase-admin-key.json
 serviceAccount*.json

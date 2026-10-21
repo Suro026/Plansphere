@@ -8,16 +8,23 @@ import { useEventMatches } from "@/components/live/hooks";
 import { PublicFooter, PublicNav } from "@/components/shell/public-nav";
 import { EmptyState, Kick, MetaList, MetaRow, Panel, Skeleton, Tag } from "@/components/ui/primitives";
 import type { Match } from "@/core/models/match";
+import { scoreProgress } from "@/core/services/scoring/progress";
 
-const ScoreLine = ({ match, size = "md" }: { match: Match; size?: "md" | "lg" }) => (
-  <div className={`flex items-center justify-center gap-4 font-medium tracking-tight ${size === "lg" ? "text-[28px]" : "text-[18px]"}`}>
-    <span className={match.winner === "home" ? "text-accent" : ""}>{match.homeTeam?.name ?? "TBD"}</span>
-    <span className="code">
-      {match.score.displayHome}–{match.score.displayAway}
-    </span>
-    <span className={match.winner === "away" ? "text-accent" : ""}>{match.awayTeam?.name ?? "TBD"}</span>
-  </div>
-);
+const ScoreLine = ({ match, size = "md" }: { match: Match; size?: "md" | "lg" }) => {
+  const progress = size === "lg" ? scoreProgress(match.score) : null;
+  return (
+    <div>
+      <div className={`flex items-center justify-center gap-4 font-medium tracking-tight ${size === "lg" ? "text-[28px]" : "text-[18px]"}`}>
+        <span className={match.winner === "home" ? "text-accent" : ""}>{match.homeTeam?.name ?? "TBD"}</span>
+        <span className="code">
+          {match.score.displayHome}–{match.score.displayAway}
+        </span>
+        <span className={match.winner === "away" ? "text-accent" : ""}>{match.awayTeam?.name ?? "TBD"}</span>
+      </div>
+      {progress ? <div className="mt-1.5 text-center text-[13px] text-neutral-400">{progress}</div> : null}
+    </div>
+  );
+};
 
 /**
  * 4 — one event's public live dashboard: hero, current match, next match,

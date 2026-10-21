@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { CERTIFICATE_LABELS, type CertificateType } from "@/core/models/certificate";
+import { pdfSafe } from "@/server/pdf-text";
 
 /**
  * Renders a certificate as an A4-landscape PDF.
@@ -63,6 +64,18 @@ export const renderCertificatePdf = async (input: CertificateRenderInput): Promi
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
 
+  // Everything below is drawn in a WinAnsi-only font, which throws on anything else
+  // (a rupee sign in a prize note, a Devanagari name) — see `pdfSafe`.
+  const t = (value: string) => pdfSafe(regular, value);
+  const recipientName = t(input.recipientName);
+  const eventTitle = t(input.eventTitle);
+  const festName = t(input.festName);
+  const organizationName = t(input.organizationName);
+  const teamName = input.teamName ? t(input.teamName) : undefined;
+  const note = input.note ? t(input.note) : undefined;
+  const certificateNumber = t(input.certificateNumber);
+  const verifyUrl = t(input.verifyUrl);
+
   const margin = 64;
   const centre = (text: string, font: typeof regular, size: number) => (width - font.widthOfTextAtSize(text, size)) / 2;
 
@@ -95,7 +108,7 @@ export const renderCertificatePdf = async (input: CertificateRenderInput): Promi
   }
 
   // Issuer kicker.
-  const kicker = `${input.festName.toUpperCase()}  ·  ${input.organizationName.toUpperCase()}`;
+  const kicker = t(`${festName.toUpperCase()}  ·  ${organizationName.toUpperCase()}`);
   page.drawText(kicker, { x: margin, y: height - 80, size: 9, font: regular, color: MUTED });
 
   // Title.
@@ -107,16 +120,16 @@ export const renderCertificatePdf = async (input: CertificateRenderInput): Promi
 
   // Recipient — the one large element. Shrink to fit if the name is long.
   let nameSize = 44;
-  while (bold.widthOfTextAtSize(input.recipientName, nameSize) > width - margin * 2 && nameSize > 22) nameSize -= 2;
-  page.drawText(input.recipientName, { x: margin, y: height - 240, size: nameSize, font: bold, color: INK });
+  while (bold.widthOfTextAtSize(recipientName, nameSize) > width - margin * 2 && nameSize > 22) nameSize -= 2;
+  page.drawText(recipientName, { x: margin, y: height - 240, size: nameSize, font: bold, color: INK });
 
   // Body.
   const verb = input.type === "participation" ? "participated in" : `placed ${input.position ? ordinal(input.position) : "among the winners"} in`;
-  const body1 = `${verb} ${input.eventTitle}`;
-  const body2 = `at ${input.festName}, organised by ${input.organizationName}` + (input.teamName ? `, as part of team ${input.teamName}.` : ".");
+  const body1 = `${verb} ${eventTitle}`;
+  const body2 = `at ${festName}, organised by ${organizationName}` + (teamName ? `, as part of team ${teamName}.` : ".");
   page.drawText(body1, { x: margin, y: height - 282, size: 14, font: regular, color: INK });
   page.drawText(body2, { x: margin, y: height - 304, size: 12, font: regular, color: MUTED });
-  if (input.note) page.drawText(input.note, { x: margin, y: height - 326, size: 12, font: regular, color: ACCENT });
+  if (note) page.drawText(note, { x: margin, y: height - 326, size: 12, font: regular, color: ACCENT });
 
   // Attendance line — the trust claim, stated plainly.
   page.drawText("Attendance was verified at the venue by QR scan; this certificate was issued by the organising college's account.", {
@@ -134,11 +147,11 @@ export const renderCertificatePdf = async (input: CertificateRenderInput): Promi
   page.drawText(issued, { x: margin, y: 74, size: 11, font: regular, color: INK });
 
   page.drawText("CERTIFICATE NO.", { x: margin + 220, y: 90, size: 7.5, font: regular, color: MUTED });
-  page.drawText(input.certificateNumber, { x: margin + 220, y: 74, size: 11, font: bold, color: INK });
+  page.drawText(certificateNumber, { x: margin + 220, y: 74, size: 11, font: bold, color: INK });
 
   const verifyLabel = "VERIFY AT";
-  page.drawText(verifyLabel, { x: width - margin - regular.widthOfTextAtSize(input.verifyUrl, 10), y: 90, size: 7.5, font: regular, color: MUTED });
-  page.drawText(input.verifyUrl, { x: width - margin - regular.widthOfTextAtSize(input.verifyUrl, 10), y: 74, size: 10, font: regular, color: ACCENT });
+  page.drawText(verifyLabel, { x: width - margin - regular.widthOfTextAtSize(verifyUrl, 10), y: 90, size: 7.5, font: regular, color: MUTED });
+  page.drawText(verifyUrl, { x: width - margin - regular.widthOfTextAtSize(verifyUrl, 10), y: 74, size: 10, font: regular, color: ACCENT });
 
   // Wordmark, bottom centre.
   page.drawText("Plansphere", { x: centre("Plansphere", bold, 9), y: 44, size: 9, font: bold, color: MUTED });

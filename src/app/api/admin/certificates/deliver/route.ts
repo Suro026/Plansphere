@@ -7,6 +7,9 @@ import { certificateIssuedEmail } from "@/server/email/templates";
 import { renderCertificatePdf } from "@/server/certificates/pdf";
 import type { CertificateType } from "@/core/models/certificate";
 
+// Up to 200 PDFs and emails per call, one after another.
+export const maxDuration = 300;
+
 const bodySchema = z.object({
   festId: z.string().min(1),
   eventId: z.string().min(1).optional(),

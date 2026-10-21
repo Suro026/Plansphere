@@ -61,8 +61,8 @@ export default function StaffPage() {
   }, [staff.data, filter, search]);
 
   return (
-    <AdminPage className="grid gap-10 pb-9 pt-[26px] lg:grid-cols-[1fr_356px]">
-      <div>
+    <AdminPage className="grid grid-cols-1 gap-10 pb-9 pt-[26px] lg:grid-cols-[1fr_356px]">
+      <div className="min-w-0">
         <PageHeading
           title="Staff"
           sub={`${staff.data?.length ?? "—"} accounts above student · roles are server-issued from the auth token, never browser state`}

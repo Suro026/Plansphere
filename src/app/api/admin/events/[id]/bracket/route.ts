@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { MatchConfig } from "@/core/models/match";
 import { generateKnockoutBracket, generateRoundRobin, type BracketMatchDraft } from "@/core/services/bracket";
+import { getScoringEngine } from "@/core/services/scoring";
 import { ApiError, handler, ok, readBody, requireFestAccess, requirePermission } from "@/server/api";
 import { audit } from "@/server/audit";
 import { COLLECTIONS, FieldValue, adminDb } from "@/server/firebase-admin";
@@ -72,6 +74,9 @@ export const POST = handler(async (request, context) => {
     }
   }
 
+  const matchConfig = (event.matchConfig ?? { durationType: "points", maxPlayers: 11 }) as MatchConfig;
+  // Every match starts from its sport engine's own state (cards, overs, sets…), not an empty one.
+  const startingScore = getScoringEngine(String(event.sportType)).initialState(matchConfig);
   const refs = drafts.map(() => db.collection(COLLECTIONS.matches).doc());
   const idFor = new Map<string, string>();
   drafts.forEach((draft, i) => idFor.set(`${draft.round}:${draft.matchIndex}`, refs[i]!.id));
@@ -96,8 +101,8 @@ export const POST = handler(async (request, context) => {
           winner: draft.winner,
           status: draft.winner ? "completed" : "upcoming",
           sportType: event.sportType,
-          matchConfig: event.matchConfig ?? { durationType: "points", maxPlayers: 11 },
-          score: { home: 0, away: 0, detail: {}, displayHome: "0", displayAway: "0", isComplete: Boolean(draft.winner) },
+          matchConfig,
+          score: { ...startingScore, isComplete: Boolean(draft.winner) },
           nextMatchId,
           nextMatchSlot: draft.nextMatchSlot,
           paused: false,

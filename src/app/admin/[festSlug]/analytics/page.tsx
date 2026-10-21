@@ -162,7 +162,7 @@ export default function FestAnalyticsPage() {
         </div>
       </div>
 
-      <div className="grid gap-8 pb-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 pb-8 lg:grid-cols-2">
         <Panel className="p-5">
           <Kick className="mb-3">Registrations over time (cumulative)</Kick>
           <LineArea points={a.registrationsOverTime} />
@@ -220,7 +220,7 @@ export default function FestAnalyticsPage() {
       </div>
 
       <Kick className="mb-3">Student analytics</Kick>
-      <div className="mb-8 grid gap-8 lg:grid-cols-2">
+      <div className="mb-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
         <Panel className="p-5">
           <DistributionList title="College" dist={a.distributions.college} />
         </Panel>
@@ -236,7 +236,7 @@ export default function FestAnalyticsPage() {
       </div>
 
       <Kick className="mb-3">Attendance analytics</Kick>
-      <div className="mb-8 grid gap-8 lg:grid-cols-2">
+      <div className="mb-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
         <Panel className="p-5">
           <MetaList>
             <MetaRow label="Registered" mono>
@@ -288,7 +288,7 @@ export default function FestAnalyticsPage() {
       </div>
 
       <Kick className="mb-3">Certificate analytics</Kick>
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <Panel className="p-5">
           <KpiStrip>
             <Kpi value={formatCount(a.certificates.eligible)} label="Eligible" />
@@ -307,7 +307,7 @@ export default function FestAnalyticsPage() {
       {a.live.matches.total > 0 ? (
         <>
           <Kick className="mb-3 mt-8">Live Event Engine</Kick>
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             <Panel className="p-5">
               <KpiStrip>
                 <Kpi value={formatCount(a.live.matches.total)} label="Total matches" />

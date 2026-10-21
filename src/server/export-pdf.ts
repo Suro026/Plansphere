@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { pdfSafe } from "./pdf-text";
 
 /**
  * A tabular PDF — the registration export's third format.
@@ -42,16 +43,20 @@ export const buildTablePdf = async (input: {
   const colWidth = usableWidth / colCount;
   const maxChars = Math.max(4, Math.floor(colWidth / (fontSize * 0.52)));
 
-  const truncate = (text: string): string => (text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text);
+  // Both fonts share the WinAnsi character set, so one font's check covers either.
+  const truncate = (text: string): string => {
+    const safe = pdfSafe(regular, text);
+    return safe.length > maxChars ? `${safe.slice(0, maxChars - 1)}…` : safe;
+  };
 
   let page = doc.addPage(PAGE);
   let y = PAGE[1] - margin;
 
   const drawTitle = () => {
-    page.drawText(input.title, { x: margin, y, size: 13, font: bold, color: INK });
+    page.drawText(pdfSafe(bold, input.title), { x: margin, y, size: 13, font: bold, color: INK });
     y -= 16;
     if (input.subtitle) {
-      page.drawText(input.subtitle, { x: margin, y, size: 9, font: regular, color: MUTED });
+      page.drawText(pdfSafe(regular, input.subtitle), { x: margin, y, size: 9, font: regular, color: MUTED });
       y -= 14;
     }
     y -= 4;

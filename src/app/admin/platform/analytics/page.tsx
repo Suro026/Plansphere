@@ -133,7 +133,7 @@ export default function PlatformAnalyticsPage() {
         </div>
       </div>
 
-      <div className="grid gap-8 pb-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 pb-8 lg:grid-cols-2">
         <Panel className="p-5">
           <Kick className="mb-3">Registrations over time (cumulative)</Kick>
           <LineArea points={a.registrationsOverTime} />
@@ -163,7 +163,7 @@ export default function PlatformAnalyticsPage() {
       </div>
 
       <Kick className="mb-3">Student analytics</Kick>
-      <div className="mb-8 grid gap-8 lg:grid-cols-2">
+      <div className="mb-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
         <Panel className="p-5">
           <DistributionList title="College" dist={a.distributions.college} />
         </Panel>
@@ -173,7 +173,7 @@ export default function PlatformAnalyticsPage() {
       </div>
 
       <Kick className="mb-3">Certificate analytics</Kick>
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <Panel className="p-5">
           <KpiStrip>
             <Kpi value={formatCount(a.overview.certificatesIssued)} label="Eligible" />

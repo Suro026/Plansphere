@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { AdminPage, useFest } from "@/components/shell/admin-shell";
 import { useAuth, useRepositories } from "@/components/providers";
 import { useFestAudit, useFestEvents, useFestGateFeed, useFestShifts } from "@/components/admin/hooks";
+import { useFestArenas } from "@/components/live/hooks";
 import { useCreateStaff, useResendInvite, useStaff, useUpdateStaff, type InviteResult, type StaffRow } from "@/components/admin/staff-api";
 import { Seg, Field, Input, RadioOption, CheckOption, Textarea } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,10 @@ export default function VolunteersPage() {
   const [search, setSearch] = React.useState("");
   const [invite, setInvite] = React.useState<{ email: string; result: InviteResult } | null>(null);
   const [editing, setEditing] = React.useState<Shift | null>(null);
+  const arenas = useFestArenas(fest.id);
+  const arenaNames = React.useMemo(() => new Map((arenas.data ?? []).map((a) => [a.id, a.name])), [arenas.data]);
+  // A scoring shift's `post` is an arena id; show the arena's name.
+  const postLabel = React.useCallback((s: Shift) => (s.duty === "scoring" ? (arenaNames.get(s.post) ?? "Arena") : s.post), [arenaNames]);
 
   // One clock reading per render pass; the live subscriptions re-render anyway.
   const now = React.useMemo(() => new Date(), [shifts.data, feed.data]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,7 +86,8 @@ export default function VolunteersPage() {
     }
     const horizon = new Date(now.getTime() + 4 * 3600_000);
     for (const s of all) {
-      if (s.cancelled || s.date !== today) continue;
+      // A scoring shift's `post` is an arena id, not a gate — it has no entry in the gate coverage list.
+      if (s.cancelled || s.date !== today || s.duty === "scoring") continue;
       const start = new Date(`${s.date}T${s.startTime}:00`);
       const end = new Date(`${s.date}T${s.endTime}:00`);
       if (end < now || start > horizon) continue;
@@ -103,14 +109,14 @@ export default function VolunteersPage() {
         if (filter === "pending") return st ? !st.activated : false;
         return true;
       })
-      .filter((s) => !term || s.userName.toLowerCase().includes(term) || s.userEmail.toLowerCase().includes(term) || s.post.toLowerCase().includes(term))
+      .filter((s) => !term || s.userName.toLowerCase().includes(term) || s.userEmail.toLowerCase().includes(term) || postLabel(s).toLowerCase().includes(term))
       .sort((a, b) => {
         const pa = shiftPhase(a, now);
         const pb = shiftPhase(b, now);
         const order = { active: 0, upcoming: 1, completed: 2, cancelled: 3 };
         return order[pa] - order[pb] || `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`);
       });
-  }, [all, filter, search, staffById, now]);
+  }, [all, filter, search, staffById, now, postLabel]);
 
   const eventTitle = (ids: string[]) => (ids.length === 0 ? "Whole fest" : ids.map((id) => (events.data ?? []).find((e) => e.id === id)?.title ?? "…").join(", "));
 
@@ -134,7 +140,7 @@ export default function VolunteersPage() {
       </KpiStrip>
 
       <AdminPage className="grid gap-9 pb-9 pt-6 lg:grid-cols-[1fr_356px]">
-        <div>
+        <div className="min-w-0">
           <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
             <Seg
               value={filter}
@@ -179,7 +185,7 @@ export default function VolunteersPage() {
                           <div className="text-[11.5px] text-neutral-500">{s.userEmail}</div>
                         </td>
                         <td>
-                          {s.post || <span className="text-neutral-500">Unassigned</span>} · {SHIFT_DUTY_LABELS[s.duty].split(" ")[0]!.toLowerCase()}
+                          {s.post ? postLabel(s) : <span className="text-neutral-500">Unassigned</span>} · {SHIFT_DUTY_LABELS[s.duty].split(" ")[0]!.toLowerCase()}
                         </td>
                         <td className="whitespace-nowrap">
                           {s.date === today ? "" : `${formatCalendarDate(s.date)} · `}
