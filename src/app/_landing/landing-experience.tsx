@@ -14,9 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { PublicAuthControls } from "@/components/shell/signed-out-only";
-import { SITE } from "@/lib/site";
-
-const SITE_LEGAL_NAME = SITE.legalName;
+import AnimatedWaveFooter from "@/components/ui/animated-wave-footer";
+import { MachineHeroLoader } from "./machine-hero-loader";
 
 /**
  * The landing page's interactive shell — the reference's `Home.tsx` header,
@@ -201,6 +200,7 @@ export function LandingExperience({
       <section className="minimal-hero">
         <span className="shooting-star shooting-star-one" aria-hidden="true" />
         <span className="shooting-star shooting-star-two" aria-hidden="true" />
+        <MachineHeroLoader />
         <div className="hero-hairline" />
         <div className="page-width minimal-hero-grid">
           <div className="minimal-hero-copy">
@@ -269,40 +269,26 @@ export function LandingExperience({
 
       {children}
 
-      <footer className="minimal-footer">
-        <div className="page-width">
-          <div className="footer-main">
-            <Logo inverted />
-            <div className="footer-tagline">
-              Make the moment
-              <br />
-              <em>matter.</em>
-            </div>
-            <div className="footer-actions">
-              <button type="button" onClick={() => setQuietMode(!quietMode)}>
-                <Moon size={13} /> {quietMode ? "Wake mode" : "Quiet mode"}
-              </button>
-              <button type="button" onClick={() => setPaletteOpen(true)}>
-                <Command size={13} /> Command
-              </button>
-            </div>
-          </div>
-          <div className="footer-rule" />
-          <div className="footer-bottom">
-            <span>© {SITE_LEGAL_NAME}</span>
-            <span>India / {new Date().getFullYear()}</span>
-            <span>
-              <Link href="/privacy" className="footer-link">
-                Privacy
-              </Link>
-              &nbsp;&nbsp;
-              <Link href="/terms" className="footer-link">
-                Terms
-              </Link>
-            </span>
-          </div>
-        </div>
-      </footer>
+      <AnimatedWaveFooter
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setQuietMode(!quietMode)}
+              className="inline-flex items-center gap-1.5 text-inherit transition-colors hover:text-accent"
+            >
+              <Moon size={13} aria-hidden="true" /> {quietMode ? "Wake mode" : "Quiet mode"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="inline-flex items-center gap-1.5 text-inherit transition-colors hover:text-accent"
+            >
+              <Command size={13} aria-hidden="true" /> Command
+            </button>
+          </>
+        }
+      />
 
       {paletteOpen && (
         <div className="palette-backdrop" onClick={() => setPaletteOpen(false)}>

@@ -210,7 +210,14 @@
   --animate-fade-in: fade-in 180ms ease-out;
   --animate-rise: rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-pop: pop 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-wave: wave 26s linear infinite;
 
+  /* The landing footer's slow drifting wave. The artwork is two identical
+     tiles side by side, so sliding by half its width loops seamlessly. */
+  @keyframes wave {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }

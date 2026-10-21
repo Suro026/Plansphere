@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, QrCode, ScanLine, Trophy, Users } from "lucide-react";
 import { FEST_TYPE_LABELS, type FestType } from "@/core/models/fest";
 import { Artwork } from "@/components/ui/primitives";
+import { GradientCard } from "@/components/ui/gradient-card";
 import type { FestPhase, HomeFest } from "./home-data";
 
 /*
@@ -23,34 +24,6 @@ const dateRange = (start: string, end: string): string => {
   if (sm === em) return `${pad(sd!)}—${pad(ed!)} ${MONTHS[sm! - 1]}`;
   return `${pad(sd!)} ${MONTHS[sm! - 1]}—${pad(ed!)} ${MONTHS[em! - 1]}`;
 };
-
-function FlowItem({
-  num,
-  icon,
-  title,
-  detail,
-  href,
-  active = false,
-}: {
-  num: string;
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-  href: string;
-  active?: boolean;
-}) {
-  return (
-    <Link href={href} className={`flow-item ${active ? "flow-active" : ""}`}>
-      <span className="flow-num">{num}</span>
-      <span className="flow-icon">{icon}</span>
-      <span className="flow-detail">
-        <strong>{title}</strong>
-        <small>{detail}</small>
-      </span>
-      <ArrowRight size={15} />
-    </Link>
-  );
-}
 
 /**
  * Right after the hero: the fests that are on now and coming up, open to
@@ -156,11 +129,47 @@ export function FlowSection() {
             What organizers get <ArrowRight size={16} />
           </Link>
         </div>
-        <div className="flow-list">
-          <FlowItem num="01" icon={<Users size={17} />} title="Organizers register the event" detail="Create your fest, add events and registration forms." href="/register-event" active />
-          <FlowItem num="02" icon={<QrCode size={17} />} title="Students find & register" detail="Sign up solo or as a team and get a QR pass." href="/explore" />
-          <FlowItem num="03" icon={<ScanLine size={17} />} title="Check in at the gate" detail="Volunteers scan passes. No paper lists." href="/for-colleges" />
-          <FlowItem num="04" icon={<Trophy size={17} />} title="Results & certificates" detail="Anyone can verify a certificate by its number." href="/verify" />
+        <div className="grid gap-4 max-[720px]:mt-10 sm:grid-cols-2">
+          <GradientCard
+            gradient="mint"
+            badgeText="For organizers"
+            badgeColor="#50675b"
+            title="Register the event"
+            description="Create your fest, add events and set up registration forms."
+            ctaText="Register Your Event"
+            ctaHref="/register-event"
+            icon={<Users strokeWidth={1.25} />}
+          />
+          <GradientCard
+            gradient="white"
+            badgeText="For students"
+            badgeColor="#101010"
+            title="Find & register"
+            description="Sign up solo or as a team and get a QR pass for every event."
+            ctaText="Explore Events"
+            ctaHref="/explore"
+            icon={<QrCode strokeWidth={1.25} />}
+          />
+          <GradientCard
+            gradient="sage"
+            badgeText="At the gate"
+            badgeColor="#3a4e44"
+            title="Check in with a scan"
+            description="Volunteers scan passes at the gate and for meals. No paper lists."
+            ctaText="How check-in works"
+            ctaHref="/for-colleges"
+            icon={<ScanLine strokeWidth={1.25} />}
+          />
+          <GradientCard
+            gradient="stone"
+            badgeText="After the event"
+            badgeColor="#8d8c88"
+            title="Results & certificates"
+            description="Publish results. Anyone can verify a certificate by its number."
+            ctaText="Verify a certificate"
+            ctaHref="/verify"
+            icon={<Trophy strokeWidth={1.25} />}
+          />
         </div>
       </div>
     </section>
