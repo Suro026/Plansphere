@@ -25,7 +25,7 @@ describe("validateEnv", () => {
     const r = validateEnv(env(complete));
     expect(r.ok).toBe(true);
     expect(r.issues).toHaveLength(0);
-    expect(r.features).toEqual({ email: "resend", cron: true, sentry: true, appCheck: "off", rateLimitStore: "memory" });
+    expect(r.features).toEqual({ email: "resend", cron: true, sentry: true, appCheck: "off", rateLimitStore: "memory", payments: "off" });
   });
 
   it("treats missing required variables as errors in production, warnings elsewhere", () => {
@@ -53,6 +53,34 @@ describe("validateEnv", () => {
     expect(r.ok).toBe(false);
     expect(r.issues.find((i) => i.level === "error")?.key).toBe("NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY");
     expect(validateEnv(env({ ...complete, APP_CHECK_ENFORCE: "true", NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY: "site" })).features.appCheck).toBe("enforced");
+  });
+
+  it("reports payments as off unless explicitly enabled, and flags a half-configured setup", () => {
+    expect(validateEnv(env(complete)).features.payments).toBe("off");
+
+    const noKey = validateEnv(env({ ...complete, PAYMENTS_ENABLED: "1" }));
+    expect(noKey.ok).toBe(false);
+    expect(noKey.issues.find((i) => i.key === "PAYMENT_SECRET_KEY")?.level).toBe("error");
+
+    const key = Buffer.alloc(32, 3).toString("base64");
+    const sandbox = validateEnv(env({ ...complete, PAYMENTS_ENABLED: "1", PAYMENT_SECRET_KEY: key }));
+    expect(sandbox.ok).toBe(true);
+    expect(sandbox.features.payments).toBe("sandbox");
+    expect(validateEnv(env({ ...complete, PAYMENTS_ENABLED: "1", PAYMENTS_LIVE_ENABLED: "1", PAYMENT_SECRET_KEY: key })).features.payments).toBe("live");
+
+    // Live without the platform switch does nothing, and says so; the test provider is flagged in production.
+    expect(validateEnv(env({ ...complete, PAYMENTS_LIVE_ENABLED: "1" })).issues.map((i) => i.key)).toContain("PAYMENTS_LIVE_ENABLED");
+    expect(validateEnv(env({ ...complete, PAYMENTS_ALLOW_TEST_PROVIDER: "1" })).issues.map((i) => i.key)).toContain("PAYMENTS_ALLOW_TEST_PROVIDER");
+    expect(validateEnv(env({ ...complete, PAYMENTS_ENABLED: "1", PAYMENT_SECRET_KEY: key, CRON_SECRET: undefined })).issues.map((i) => i.key)).toContain("CRON_SECRET");
+  });
+
+  it("checks the previous payment keys used during a rotation", () => {
+    const key = Buffer.alloc(32, 3).toString("base64");
+    const on = { ...complete, PAYMENTS_ENABLED: "1", PAYMENT_SECRET_KEY: key };
+    expect(validateEnv(env({ ...on, PAYMENT_SECRET_KEYS_PREVIOUS: `${Buffer.alloc(32, 4).toString("base64")}, ${Buffer.alloc(32, 5).toString("base64")}` })).ok).toBe(true);
+    const bad = validateEnv(env({ ...on, PAYMENT_SECRET_KEYS_PREVIOUS: "not-a-key" }));
+    expect(bad.ok).toBe(false);
+    expect(bad.issues.find((i) => i.key === "PAYMENT_SECRET_KEYS_PREVIOUS")?.level).toBe("error");
   });
 
   it("does not require the service account when running against the emulator", () => {

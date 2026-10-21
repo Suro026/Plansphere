@@ -1,3 +1,4 @@
+import { PAYMENT_STATUS_LABELS, type RegistrationPaymentStatus } from "../models/payment";
 import type { Registration } from "../models/registration";
 import type { Attendance } from "../models/attendance";
 import type { Event } from "../models/event";
@@ -44,7 +45,12 @@ const leaderPhone = (registration: Registration): string =>
   registration.answers?.phone ?? registration.members.find((m) => m.isLeader)?.phone ?? registration.members[0]?.phone ?? "";
 
 /** "Free" / "₹500" — derived from the event's fee, since there is no payment gateway to ask instead. */
-const paymentLabel = (entryFee: number | undefined): string => (!entryFee ? "Free" : `₹${entryFee.toLocaleString("en-IN")}`);
+const paymentLabel = (entryFee: number | undefined, paymentStatus?: string): string => {
+  const base = !entryFee ? "Free" : `₹${entryFee.toLocaleString("en-IN")}`;
+  // Collected online: say where the money stands. Free and legacy entries read exactly as before.
+  const state = paymentStatus && paymentStatus !== "not_required" ? PAYMENT_STATUS_LABELS[paymentStatus as RegistrationPaymentStatus] : undefined;
+  return state ? `${base} · ${state}` : base;
+};
 
 export const filterRegistrations = (
   registrations: readonly Registration[],
@@ -100,7 +106,7 @@ export const buildExportRows = (
       college: leaderCollege(r),
       phone: leaderPhone(r),
       status: att ? "checked_in" : r.status,
-      payment: paymentLabel(event?.entryFee),
+      payment: paymentLabel(event?.entryFee, r.paymentStatus),
       qr: r.ticketCode,
       attendance: att ? att.scannedAt.toISOString() : "",
       answers: r.answers ?? {},

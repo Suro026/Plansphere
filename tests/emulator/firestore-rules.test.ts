@@ -132,6 +132,10 @@ describe("attendance", () => {
   });
   it("an volunteer records a scan for their fest exactly once", async () => {
     const db = as(volunteer);
+    // A scan is only ever recorded for a registration that exists (the admission rule reads it).
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "registrations", "reg2"), { id: "reg2", eventId: "ev1", festId: "fest1", userId: student.uid, type: "solo", status: "confirmed", seats: 1, ticketCode: "FF-AAAAAAAAAA", members: [], memberEmails: [], eventTitle: "CTF", userName: "S", userEmail: student.email, createdAt: new Date(), updatedAt: new Date() });
+    });
     const record = { id: "reg2", registrationId: "reg2", eventId: "ev1", festId: "fest1", userId: student.uid, ticketCode: "FF-AAAAAAAAAA", scannedAt: new Date(), scannedBy: volunteer.uid, method: "qr", createdAt: new Date(), updatedAt: new Date() };
     await assertSucceeds(setDoc(doc(db, "attendance", "reg2"), record));
     await assertFails(setDoc(doc(db, "attendance", "reg2"), { ...record, scannedAt: new Date() })); // second scan is an update → denied
@@ -191,5 +195,76 @@ describe("Live Event Engine — arenas, matches, matchLog", () => {
     // Every one of these must go through /api/volunteer/matches/[id]/action or
     // /api/admin/arenas — the arena-scoping and the audit trail live there,
     // not in a rule that cannot read a volunteer's Shift.
+  });
+});
+
+describe("online payment", () => {
+  const now = () => new Date();
+  const paidEntry = (id: string, over: Record<string, unknown>) =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "registrations", id), {
+        id, eventId: "ev1", festId: "fest1", userId: student.uid, type: "solo", status: "confirmed", seats: 1, ticketCode: `FF-${id.toUpperCase().padEnd(10, "A").slice(0, 10)}`,
+        members: [{ name: "Stu One", email: student.email, userId: student.uid, isLeader: true, inviteStatus: "accepted" }], memberEmails: [student.email],
+        eventTitle: "CTF", userName: "Stu One", userEmail: student.email, createdAt: now(), updatedAt: now(), ...over,
+      });
+    });
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "paymentAccounts", "fest1"), { festId: "fest1", provider: "test", mode: "sandbox", status: "active" });
+      await setDoc(doc(db, "paymentSecrets", "fest1"), { festId: "fest1", blob: { v: 1, iv: "x", tag: "y", data: "z" } });
+      await setDoc(doc(db, "payments", "reg1"), { registrationId: "reg1", festId: "fest1", userId: student.uid, amountPaise: 50000, status: "paid" });
+      await setDoc(doc(db, "paymentEvents", "test_e1"), { provider: "test", eventId: "e1", state: "done" });
+    });
+  });
+
+  it("no client — not the payer, not a fest admin, not anonymous — can read or write payment records or credentials", async () => {
+    for (const [collectionName, id] of [["paymentAccounts", "fest1"], ["paymentSecrets", "fest1"], ["payments", "reg1"], ["paymentEvents", "test_e1"]] as const) {
+      for (const identity of [anon(), as(student), as(stranger), as(volunteer), as(admin), as(otherAdmin)]) {
+        await assertFails(getDoc(doc(identity, collectionName, id)));
+        await assertFails(setDoc(doc(identity, collectionName, id), { status: "paid" }));
+        await assertFails(updateDoc(doc(identity, collectionName, id), { status: "paid" }));
+      }
+      await assertFails(getDocs(collection(as(admin), collectionName)));
+    }
+  });
+
+  it("an owner cannot cancel a paid entry from the client — that has to go through the API, which records the refund", async () => {
+    await paidEntry("paid1", { paymentStatus: "paid" });
+    await assertFails(updateDoc(doc(as(student), "registrations", "paid1"), { status: "cancelled", cancelledAt: now(), updatedAt: now() }));
+    // Free and legacy entries (no paymentStatus, or not_required) are unchanged.
+    await paidEntry("free1", {});
+    await assertSucceeds(updateDoc(doc(as(student), "registrations", "free1"), { status: "cancelled", cancelledAt: now(), updatedAt: now() }));
+    await paidEntry("free2", { paymentStatus: "not_required" });
+    await assertSucceeds(updateDoc(doc(as(student), "registrations", "free2"), { status: "cancelled", cancelledAt: now(), updatedAt: now() }));
+  });
+
+  it("an owner cannot mark their own entry as paid or confirm an unpaid hold", async () => {
+    await paidEntry("hold1", { status: "pending_payment", paymentStatus: "pending" });
+    await assertFails(updateDoc(doc(as(student), "registrations", "hold1"), { status: "confirmed", paymentStatus: "paid", updatedAt: now() }));
+    await assertFails(updateDoc(doc(as(student), "registrations", "hold1"), { paymentStatus: "paid", updatedAt: now() }));
+    await assertFails(updateDoc(doc(as(student), "registrations", "hold1"), { status: "cancelled", cancelledAt: now(), updatedAt: now() }));
+  });
+
+  it("a scanner cannot record entry or a meal for an unpaid entry, but can for a paid or free one", async () => {
+    const db = as(volunteer);
+    const entry = (id: string) => ({ id, registrationId: id, eventId: "ev1", festId: "fest1", userId: student.uid, ticketCode: "FF-AAAAAAAAAA", scannedAt: now(), scannedBy: volunteer.uid, method: "qr", createdAt: now(), updatedAt: now() });
+    const meal = (reg: string) => ({ id: `${reg}_lunch_1`, registrationId: reg, eventId: "ev1", festId: "fest1", userId: student.uid, ticketCode: "FF-AAAAAAAAAA", mealType: "lunch", servedOn: "2026-09-26", serving: 1, collectedAt: now(), collectedBy: volunteer.uid, createdAt: now(), updatedAt: now() });
+
+    await paidEntry("unpaid1", { status: "pending_payment", paymentStatus: "pending" });
+    await paidEntry("lapsed1", { status: "confirmed", paymentStatus: "refund_pending" });
+    await paidEntry("review1", { status: "pending_payment", paymentStatus: "needs_review" });
+    await paidEntry("paid2", { status: "confirmed", paymentStatus: "paid" });
+    await paidEntry("free3", {});
+
+    for (const id of ["unpaid1", "lapsed1", "review1"]) {
+      await assertFails(setDoc(doc(db, "attendance", id), entry(id)));
+      await assertFails(setDoc(doc(db, "foodCollections", `${id}_lunch_1`), meal(id)));
+    }
+    for (const id of ["paid2", "free3"]) {
+      await assertSucceeds(setDoc(doc(db, "attendance", id), entry(id)));
+      await assertSucceeds(setDoc(doc(db, "foodCollections", `${id}_lunch_1`), meal(id)));
+    }
   });
 });

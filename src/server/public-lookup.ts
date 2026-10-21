@@ -1,3 +1,4 @@
+import { admissionBlock, type AdmissionBlock } from "@/core/models/admission";
 import { COLLECTIONS, FieldValue, adminDb } from "./firebase-admin";
 import type { RegistrationStatus } from "@/core/models/registration";
 
@@ -117,6 +118,8 @@ export interface PublicTicket {
   teamName: string | null;
   memberCount: number;
   status: RegistrationStatus;
+  /** Why this ticket would not admit anyone, or null if it would. Same rule as every gate. */
+  block: AdmissionBlock | null;
   entryAt: string | null;
   entryGate: string | null;
 }
@@ -151,6 +154,7 @@ export const lookupTicket = async (raw: string): Promise<{ ticket: PublicTicket 
       teamName: reg.teamName ? String(reg.teamName) : null,
       memberCount: Array.isArray(reg.members) ? (reg.members as unknown[]).length : 1,
       status: (reg.status as PublicTicket["status"]) ?? "confirmed",
+      block: admissionBlock({ status: reg.status, paymentStatus: reg.paymentStatus }),
       entryAt: attendance.exists ? iso(attendance.data()!.scannedAt) : null,
       entryGate: attendance.exists && attendance.data()!.gate ? String(attendance.data()!.gate) : null,
     },

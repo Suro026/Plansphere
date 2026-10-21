@@ -1,3 +1,4 @@
+import type { AdmissionBlock } from "./admission";
 import { z } from "zod";
 import { auditFieldsSchema, emailSchema, idSchema, shortTextSchema } from "./common";
 
@@ -240,4 +241,14 @@ export type ScanOutcome =
     }
   | { result: "not-found" }
   | { result: "wrong-event"; expectedEventTitle: string }
-  | { result: "cancelled" };
+  | { result: "cancelled" }
+  /** On the waitlist: no seat is held, so nobody is admitted or served. */
+  | { result: "waitlisted" }
+  /** A team that has not reached its minimum size: not an entry yet, so nobody is admitted or served. */
+  | { result: "draft" }
+  /** A paid entry whose payment has not been verified: not admitted, not served. */
+  | { result: "unpaid" };
+
+/** The scan result a refused admission is reported as. A returned payment reads as cancelled. */
+export const blockOutcome = (block: AdmissionBlock): { result: "cancelled" | "waitlisted" | "draft" | "unpaid" } =>
+  block === "waitlisted" ? { result: "waitlisted" } : block === "draft" ? { result: "draft" } : block === "unpaid" ? { result: "unpaid" } : { result: "cancelled" };

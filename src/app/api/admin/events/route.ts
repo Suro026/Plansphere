@@ -3,6 +3,7 @@ import { ApiError, handler, ok, readBody, requireFestAccess, requirePermission }
 import { COLLECTIONS, FieldValue, adminDb } from "@/server/firebase-admin";
 import { audit } from "@/server/audit";
 import { compact, docToJson } from "@/server/serialize";
+import { assertPaidEventAllowed } from "@/server/payments/event-rules";
 
 /**
  * POST /api/admin/events — create an event in a fest the caller manages.
@@ -20,6 +21,9 @@ export const POST = handler(async (request) => {
 
   const fest = await db.collection(COLLECTIONS.fests).doc(input.festId).get();
   if (!fest.exists) throw ApiError.notFound("That fest no longer exists.");
+
+  // Online payment is opt-in per event, and a paid event can only go live on a fest with an approved payment account.
+  await assertPaidEventAllowed({ festId: input.festId, paymentEnabled: input.paymentEnabled, entryFee: input.entryFee, status: input.status, publishing: input.status === "published" });
 
   const clash = await db
     .collection(COLLECTIONS.events)

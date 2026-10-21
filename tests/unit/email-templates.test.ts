@@ -17,6 +17,7 @@ const all: Record<string, EmailMessage> = {
   event_reminder: t.eventReminderEmail({ to: "a@x.test", recipientName: "Ishita", eventTitle: "CTF", festName: "Bits2Bytes", date: "2026-09-25", startTime: "10:00", venue: "Lab 4", ticketCode: "FF-7K2M9QX4TB", registrationId: "reg1" }),
   event_updated: t.eventUpdatedEmail({ to: "a@x.test", recipientName: "Ishita", eventTitle: "CTF", festName: "Bits2Bytes", changes: ["Venue: Lab 4 → Lab 5"], registrationId: "reg1" }),
   event_cancelled: t.eventCancelledEmail({ to: "a@x.test", recipientName: "Ishita", eventTitle: "CTF", festName: "Bits2Bytes" }),
+  payment_due: t.paymentDueEmail({ to: "a@x.test", recipientName: "Ishita", eventTitle: "CTF", festName: "Bits2Bytes", amountLabel: "₹500", holdMinutes: 15, registrationId: "reg1" }),
   announcement: t.announcementEmail({ to: "a@x.test", recipientName: "Ishita", festName: "Bits2Bytes", title: "Venue change", body: "Finals move to <Lab 5> & back." }),
 };
 

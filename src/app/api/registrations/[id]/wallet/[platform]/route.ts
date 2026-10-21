@@ -1,3 +1,4 @@
+import { ADMISSION_MESSAGES, admissionBlock } from "@/core/models/admission";
 import { WALLET_SUPPORT, buildWalletPass, walletAvailable, type WalletPlatform } from "@/core/services/wallet";
 import { memberFor } from "@/core/models/registration";
 import { ApiError, authenticate, handler, ok } from "@/server/api";
@@ -38,7 +39,9 @@ export const GET = handler(async (request, context) => {
     throw ApiError.forbidden("That pass isn't yours.");
   }
 
-  if (registration.status === "cancelled") throw ApiError.unprocessable("That entry was cancelled.");
+  // A wallet pass is a ticket: it is issued only to an entry the gate would admit.
+  const block = admissionBlock({ status: registration.status, paymentStatus: registration.paymentStatus });
+  if (block) throw ApiError.unprocessable(block === "cancelled" ? "That entry was cancelled." : `${ADMISSION_MESSAGES[block]} A wallet pass is issued once the entry is confirmed.`);
 
   const [eventSnap, festSnap] = await Promise.all([
     db.collection(COLLECTIONS.events).doc(String(registration.eventId)).get(),

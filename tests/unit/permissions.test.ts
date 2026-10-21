@@ -27,6 +27,7 @@ const EXPECTED: Record<UserRole, Permission[]> = {
     "results:publish", "certificate:issue", "certificate:revoke",
     "announcement:send", "staff:createVolunteer", "staff:manage", "audit:read",
     "upload:festArtwork", "upload:eventPoster", "match:manage",
+    "payment:configure", "payment:refund",
   ],
   super_admin: [...PERMISSIONS],
 };
@@ -41,6 +42,7 @@ const OWNER_ONLY: Permission[] = [
   "certificate:publish",
   "staff:createAdmin",
   "platform:manage",
+  "payment:approve",
 ];
 
 describe("roles", () => {

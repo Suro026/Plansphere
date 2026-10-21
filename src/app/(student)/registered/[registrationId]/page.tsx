@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Check } from "@phosphor-icons/react";
 import { Page } from "@/components/shell/student-shell";
 import { DigitalTicket } from "@/components/student/digital-ticket";
+import { PaymentPanel } from "@/components/student/payment-panel";
 import { useMyEntries } from "@/components/student/use-my-entries";
 import { useAuth } from "@/components/providers";
 import { EmptyState, MetaList, MetaRow, Skeleton } from "@/components/ui/primitives";
@@ -49,6 +50,8 @@ export default function RegisteredPage() {
   const { registration, event, fest } = entry;
   const teammates = registration.members.filter((m) => !m.isLeader).map((m) => m.name.split(/\s+/)[0]);
   const waitlisted = registration.status === "waitlisted";
+  const awaitingPayment = registration.status === "pending_payment";
+  const refunding = registration.paymentStatus === "refund_pending" || registration.paymentStatus === "refunded";
   const draft = registration.status === "draft";
   const short = draft ? Math.max(0, (event?.teamSize.min ?? 1) - registration.members.filter((m) => m.isLeader || m.inviteStatus === "accepted").length) : 0;
   // A teammate opening the team pass sees the same ticket, with copy that
@@ -62,7 +65,11 @@ export default function RegisteredPage() {
         <Check size={28} weight="bold" />
       </div>
       <h1 className="text-[31px] leading-[1.06] tracking-[-0.025em]">
-        {waitlisted
+        {awaitingPayment
+          ? "Complete your payment"
+          : refunding
+            ? "Entry cancelled"
+            : waitlisted
           ? "You're on the list"
           : draft
             ? "Seats held for your team"
@@ -71,10 +78,18 @@ export default function RegisteredPage() {
               : `You're on ${registration.teamName ?? "the team"}`}
       </h1>
       <p className="mt-2.5 text-[14px] text-neutral-300">
-        {draft ? (
+        {awaitingPayment ? (
+          <>
+            Your seat for {registration.eventTitle} is held while you pay. The ticket is issued once the payment is confirmed.
+          </>
+        ) : refunding ? (
+          <>
+            {registration.eventTitle} is cancelled for you. {registration.paymentStatus === "refunded" ? "Your payment has been refunded." : "Your refund is being processed."}
+          </>
+        ) : draft ? (
           <>
             Team {registration.teamName} has its seats for {registration.eventTitle}. It is confirmed once{" "}
-            {short === 1 ? "one more person" : `${short} more people`} joins — until then the ticket is not valid at the gate.
+            {short === 1 ? "one more person" : `${short} more people`} joins — until then the ticket is not valid for entry at any gate, and no QR is shown.
           </>
         ) : (
           <>
@@ -84,9 +99,11 @@ export default function RegisteredPage() {
         )}
       </p>
 
+      {awaitingPayment && isLeader ? <PaymentPanel registration={registration} /> : null}
+
       {/* The moment the code is most useful: the leader has just registered
           and the people they need are standing next to them. */}
-      {isLeader && registration.joinCode && registration.type === "team" ? (
+      {isLeader && !awaitingPayment && registration.joinCode && registration.type === "team" ? (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md bg-surface px-3.5 py-3">
           <span className="text-[12px] text-neutral-500">Join code</span>
           <span className="font-mono text-[19px] tracking-[0.2em]">{registration.joinCode}</span>
@@ -110,7 +127,7 @@ export default function RegisteredPage() {
       </div>
 
       <MetaList className="mt-4">
-        {isLeader ? <MetaRow label="Confirmation email">Sent to {registration.userEmail}</MetaRow> : <MetaRow label="Team leader">{registration.userName}</MetaRow>}
+        {isLeader && !awaitingPayment ? <MetaRow label="Confirmation email">Sent to {registration.userEmail}</MetaRow> : <MetaRow label="Team leader">{registration.userName}</MetaRow>}
         {teammates.length ? (
           <MetaRow label={isLeader ? "Teammates invited" : "Team"}>
             {teammates.join(", ")}
@@ -121,9 +138,11 @@ export default function RegisteredPage() {
       </MetaList>
 
       <div className="mt-4 flex flex-col gap-[9px]">
-        <Button asChild variant="primary" size="lg" block>
-          <Link href={`/my-pass?r=${registration.id}`}>View my pass</Link>
-        </Button>
+        {awaitingPayment ? null : (
+          <Button asChild variant="primary" size="lg" block>
+            <Link href={`/my-pass?r=${registration.id}`}>View my pass</Link>
+          </Button>
+        )}
         {registration.type === "team" ? (
           <Button asChild variant="secondary" block>
             <Link href="/teams">{isLeader ? "Manage the team" : "View the team"}</Link>

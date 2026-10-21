@@ -59,6 +59,8 @@ export const POST = handler(async (request) => {
 
     if (reg.status === "cancelled") throw ApiError.unprocessable("That entry was cancelled.");
     if (reg.type !== "team") throw ApiError.unprocessable("That code belongs to a solo entry.");
+    // An entry still waiting for its payment is not a team yet; joining it would let a roster change confirm it unpaid.
+    if (reg.status === "pending_payment") throw ApiError.conflict("This team is waiting for its leader to complete the payment. Try again once it is confirmed.");
 
     const members = ((reg.members ?? []) as MemberDoc[]).map((m) => ({ ...m, email: String(m.email).toLowerCase() }));
     const status = (reg.status ?? "confirmed") as RegistrationStatus;

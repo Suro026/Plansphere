@@ -11,6 +11,7 @@ export * from "./user";
 export * from "./fest";
 export * from "./event";
 export * from "./registration";
+export * from "./payment";
 export * from "./attendance";
 export * from "./result";
 export * from "./certificate";

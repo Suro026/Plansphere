@@ -153,6 +153,14 @@ const EntryRow = ({ entry, onChanged }: { entry: Entry; onChanged: () => void })
     </Tag>
   ) : registration.status === "waitlisted" ? (
     <Tag tone="neutral">Waitlisted</Tag>
+  ) : registration.status === "pending_payment" ? (
+    <Tag tone="outline">Payment due</Tag>
+  ) : registration.status === "draft" ? (
+    <Tag tone="outline">Team incomplete</Tag>
+  ) : registration.paymentStatus === "refund_pending" ? (
+    <Tag tone="neutral">Refund pending</Tag>
+  ) : registration.paymentStatus === "refunded" ? (
+    <Tag tone="neutral">Refunded</Tag>
   ) : registration.status === "cancelled" ? (
     <Tag tone="neutral">Cancelled</Tag>
   ) : (
@@ -199,7 +207,11 @@ const EntryRow = ({ entry, onChanged }: { entry: Entry; onChanged: () => void })
               </AlertDialogTrigger>
               <AlertDialogContent
                 title="Cancel this registration?"
-                description={`Your ${registration.teamName ? "team's " : ""}seat${registration.seats > 1 ? "s" : ""} for ${registration.eventTitle} will go back to the pool. This can't be undone.`}
+                description={
+                  registration.paymentStatus === "paid"
+                    ? `Your ${registration.teamName ? "team's " : ""}seat${registration.seats > 1 ? "s" : ""} for ${registration.eventTitle} will go back to the pool and a refund request goes to the organizers. This can't be undone.`
+                    : `Your ${registration.teamName ? "team's " : ""}seat${registration.seats > 1 ? "s" : ""} for ${registration.eventTitle} will go back to the pool. This can't be undone.`
+                }
                 confirmLabel="Cancel registration"
                 destructive
                 loading={busy}

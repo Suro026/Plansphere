@@ -178,6 +178,21 @@ export const COLLECTIONS = {
   arenas: "arenas",
   matches: "matches",
   matchLog: "matchLog",
+  /**
+   * Optional paid registration. All four are server-only: Firestore rules deny
+   * every client read and write (see the "payments" block in firestore.rules),
+   * and staff see payment state through the API and the registration's own
+   * `paymentStatus`.
+   *
+   *   paymentAccounts  one per fest — provider, mode, approval status. No secrets.
+   *   paymentSecrets   one per fest — the merchant credentials, AES-256-GCM encrypted.
+   *   payments         one per registration — the money state, orders and refunds.
+   *   paymentEvents    webhook de-duplication ledger.
+   */
+  paymentAccounts: "paymentAccounts",
+  paymentSecrets: "paymentSecrets",
+  payments: "payments",
+  paymentEvents: "paymentEvents",
 } as const;
 
 /** Ensures the app is only ever initialised once per process. */

@@ -1,3 +1,5 @@
+import Team01, { hasTeamProfile } from "@/components/ui/team-01";
+import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,17 +17,22 @@ export const revalidate = 30;
 
 type Params = { festSlug: string; eventSlug: string };
 
-const load = async ({ festSlug, eventSlug }: Params) => {
+/**
+ * Shared by `generateMetadata` and the page. `cache` (keyed on the two slugs, so the
+ * arguments must stay primitives) turns four Firestore reads per request into two.
+ */
+const load = cache(async (festSlug: string, eventSlug: string) => {
   const repos = repositories();
   const fest = await repos.fests.getBySlug(festSlug).catch(() => null);
   if (!fest || fest.status !== "published") return null;
   const event = await repos.events.getBySlug(fest.id, eventSlug).catch(() => null);
   if (!event || event.status === "draft") return null;
   return { fest, event };
-};
+});
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
-  const data = await load(await params);
+  const { festSlug, eventSlug } = await params;
+  const data = await load(festSlug, eventSlug);
   if (!data) return { title: "Event not found" };
   const path = `/f/${data.fest.slug}/e/${data.event.slug}`;
   const description = data.event.description?.slice(0, 160) || `${data.event.title} at ${data.fest.name} · ${formatCalendarDate(data.event.date)} · ${data.event.venue}`;
@@ -69,7 +76,8 @@ const eventJsonLd = (fest: Fest, event: Event) => ({
 
 /** 2a — event detail. Poster card on a phone, 52px headline with a two-column body on desktop. */
 export default async function EventPage({ params }: { params: Promise<Params> }) {
-  const data = await load(await params);
+  const { festSlug, eventSlug } = await params;
+  const data = await load(festSlug, eventSlug);
   if (!data) notFound();
   const { fest, event } = data;
 
@@ -170,6 +178,8 @@ export default async function EventPage({ params }: { params: Promise<Params> })
 
           <RegisterPanel event={event} fest={fest} />
         </div>
+
+        {hasTeamProfile(event.coordinators) ? <Team01 members={event.coordinators} /> : null}
       </Page>
       </main>
       <StudentTapBar />

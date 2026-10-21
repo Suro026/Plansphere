@@ -19,6 +19,7 @@ import { ImageUploadField } from "@/components/ui/image-upload";
 import { PdfUploadField } from "@/components/ui/pdf-upload";
 import { Button } from "@/components/ui/button";
 import { Kick } from "@/components/ui/primitives";
+import { api } from "@/data/api-client";
 import { EventCard } from "@/components/event/event-card";
 import { slugify } from "@/lib/utils";
 
@@ -30,6 +31,8 @@ import { slugify } from "@/lib/utils";
  * come through `valueAsNumber`. The same sections render as wizard steps on
  * creation and as a settings page afterwards.
  */
+
+const httpsOrBlank = z.union([z.string().url("Enter a full URL").refine((v) => v.toLowerCase().startsWith("https://"), "Enter an https:// URL"), z.literal("")]).optional();
 
 export const eventFormSchema = z
   .object({
@@ -59,6 +62,10 @@ export const eventFormSchema = z
           name: z.string().trim().min(1, "Name").max(200),
           phone: z.string().trim().max(20).optional(),
           email: z.union([emailSchema, z.literal("")]).optional(),
+          role: z.string().trim().max(80).optional(),
+          photoUrl: httpsOrBlank,
+          linkedinUrl: httpsOrBlank,
+          websiteUrl: httpsOrBlank,
         }),
       )
       .max(10),
@@ -72,6 +79,7 @@ export const eventFormSchema = z
     registrationOpen: z.boolean(),
     waitlistEnabled: z.boolean(),
     entryFee: z.number().int().min(0).max(1000000),
+    paymentEnabled: z.boolean(),
 
     gatesText: z.string().max(2000).optional(),
     mealSlots: z
@@ -123,7 +131,7 @@ export const toCreateEvent = (v: EventFormOutput, festId: string): CreateEvent =
   prizePool: v.prizePool || undefined,
   rules: lines(v.rulesText),
   prizes: lines(v.prizesText),
-  coordinators: v.coordinators.map((c) => ({ name: c.name, phone: c.phone || undefined, email: c.email || undefined })),
+  coordinators: v.coordinators.map((c) => ({ name: c.name, phone: c.phone || undefined, email: c.email || undefined, role: c.role || undefined, photoUrl: c.photoUrl || undefined, linkedinUrl: c.linkedinUrl || undefined, websiteUrl: c.websiteUrl || undefined })),
   eventType: v.eventType,
   teamSize: v.eventType === "solo" ? { min: 1, max: 1 } : { min: v.teamMin, max: v.teamMax },
   capacity: v.capacity,
@@ -131,6 +139,7 @@ export const toCreateEvent = (v: EventFormOutput, festId: string): CreateEvent =
   registrationOpen: v.registrationOpen,
   waitlistEnabled: v.waitlistEnabled,
   entryFee: v.entryFee,
+  paymentEnabled: v.paymentEnabled,
   gates: lines(v.gatesText),
   mealSlots: v.mealSlots,
   status: v.status,
@@ -161,7 +170,7 @@ export const fromEvent = (event: Event): EventFormValues => ({
   prizePool: event.prizePool ?? "",
   rulesText: event.rules.join("\n"),
   prizesText: event.prizes.join("\n"),
-  coordinators: event.coordinators.map((c) => ({ name: c.name, phone: c.phone ?? "", email: c.email ?? "" })),
+  coordinators: event.coordinators.map((c) => ({ name: c.name, phone: c.phone ?? "", email: c.email ?? "", role: c.role ?? "", photoUrl: c.photoUrl ?? "", linkedinUrl: c.linkedinUrl ?? "", websiteUrl: c.websiteUrl ?? "" })),
   eventType: event.eventType,
   teamMin: event.teamSize.min,
   teamMax: event.teamSize.max,
@@ -170,6 +179,7 @@ export const fromEvent = (event: Event): EventFormValues => ({
   registrationOpen: event.registrationOpen,
   waitlistEnabled: event.waitlistEnabled,
   entryFee: event.entryFee,
+  paymentEnabled: event.paymentEnabled,
   gatesText: event.gates.join("\n"),
   mealSlots: event.mealSlots,
   status: event.status,
@@ -199,6 +209,7 @@ export const emptyEvent = (festStart: string): EventFormValues => ({
   registrationOpen: true,
   waitlistEnabled: false,
   entryFee: 0,
+  paymentEnabled: false,
   gatesText: "",
   mealSlots: [],
   status: "draft",
@@ -315,9 +326,38 @@ export const BasicsFields = ({ form, lockSlug, festId }: { form: Form; lockSlug?
   );
 };
 
-export const RegistrationFields = ({ form, locked }: { form: Form; locked?: { teamSize?: boolean; minCapacity?: number } }) => {
+interface FestPaymentsView {
+  platform: { enabled: boolean };
+  account: { status: string; mode: string } | null;
+  available: boolean;
+  blocker: string | null;
+}
+
+/**
+ * Whether this fest can take online payment right now. Loaded only when a fest
+ * id is given, and any failure (no permission, offline) reads as "not available"
+ * rather than hiding the rest of the form.
+ */
+const useFestPayments = (festId: string | undefined) => {
+  const [view, setView] = React.useState<FestPaymentsView | null>(null);
+  React.useEffect(() => {
+    if (!festId) return;
+    let live = true;
+    api<FestPaymentsView>(`/api/admin/fests/${festId}/payments`)
+      .then((v) => live && setView(v))
+      .catch(() => live && setView(null));
+    return () => {
+      live = false;
+    };
+  }, [festId]);
+  return view;
+};
+
+export const RegistrationFields = ({ form, locked, festId }: { form: Form; locked?: { teamSize?: boolean; minCapacity?: number; payment?: boolean }; festId?: string }) => {
   const err = form.formState.errors;
   const type = form.watch("eventType");
+  const payments = useFestPayments(festId);
+  const online = form.watch("paymentEnabled");
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -355,13 +395,37 @@ export const RegistrationFields = ({ form, locked }: { form: Form; locked?: { te
       <Field label="Registration closes" htmlFor="ev-deadline" error={err.registrationDeadline?.message} hint="Stays open through the whole day.">
         <Input id="ev-deadline" type="date" {...form.register("registrationDeadline")} />
       </Field>
-      <Field label="Entry fee (₹, 0 = free)" htmlFor="ev-fee" error={err.entryFee?.message} hint="Payments are collected outside Plansphere for now; this is shown to students.">
-        <Input id="ev-fee" type="number" min={0} {...form.register("entryFee", { valueAsNumber: true })} />
+      <Field
+        label="Entry fee (₹, 0 = free)"
+        htmlFor="ev-fee"
+        error={err.entryFee?.message}
+        hint={online ? "Charged once per registration — a team pays once. Plansphere adds no fee or commission." : "Shown to students. Turn on online payment to collect it through Plansphere."}
+      >
+        <Input id="ev-fee" type="number" min={0} disabled={locked?.payment && online} {...form.register("entryFee", { valueAsNumber: true })} />
       </Field>
       <div className="flex flex-col gap-2.5 pt-1">
         <CheckOption label="Registration open" description="Turn off to pause sign-ups without changing the deadline." {...form.register("registrationOpen")} />
         <CheckOption label="Waitlist when full" description="Entries beyond capacity queue up and are promoted automatically when a seat frees." {...form.register("waitlistEnabled")} />
       </div>
+      {festId ? (
+        <div className="sm:col-span-2">
+          <CheckOption
+            label="Collect the entry fee online"
+            description={
+              locked?.payment
+                ? "Locked — someone has already registered."
+                : payments?.available
+                  ? "Students pay when they register; the seat is held for a few minutes while they do. Free events don’t need this."
+                  : `Needs a fest payment account approved by the platform administrator. ${payments?.blocker ?? "Online payment isn’t set up for this fest yet."}`
+            }
+            disabled={locked?.payment || (!payments?.available && !online)}
+            {...form.register("paymentEnabled")}
+          />
+          {online && !payments?.available ? (
+            <div className="mt-2 text-[12px] text-neutral-500">You can save this as a draft, but it can’t be published until the payment account is approved.</div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -416,20 +480,20 @@ export const ScanningFields = ({ form }: { form: Form }) => {
   );
 };
 
-export const CoordinatorsFields = ({ form }: { form: Form }) => {
+export const CoordinatorsFields = ({ form, festId }: { form: Form; festId?: string }) => {
   const list = useFieldArray({ control: form.control, name: "coordinators" });
   const err = form.formState.errors;
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <Kick>Coordinators</Kick>
-        <Button variant="ghost" size="sm" onClick={() => list.append({ name: "", phone: "", email: "" })}>
+        <Kick>Team and coordinators</Kick>
+        <Button variant="ghost" size="sm" onClick={() => list.append({ name: "", phone: "", email: "", role: "", photoUrl: "", linkedinUrl: "", websiteUrl: "" })}>
           <Plus size={13} /> Add
         </Button>
       </div>
       {list.fields.length === 0 ? (
-        <div className="text-[12.5px] text-neutral-500">Shown on the event page so participants know who to call.</div>
+        <div className="text-[12.5px] text-neutral-500">Shown on the event page as “Meet the team”, so participants know who is behind it and who to call. Role, photo and links are optional.</div>
       ) : (
         <div className="flex flex-col gap-2">
           {list.fields.map((c, i) => (
@@ -446,6 +510,28 @@ export const CoordinatorsFields = ({ form }: { form: Form }) => {
               <Button variant="secondary" size="icon" aria-label="Remove" onClick={() => list.remove(i)}>
                 <X size={14} />
               </Button>
+              <div className="grid grid-cols-1 gap-2 sm:col-span-4 sm:grid-cols-3">
+                <Field error={err.coordinators?.[i]?.role?.message}>
+                  <Input placeholder="Role — Event lead" {...form.register(`coordinators.${i}.role`)} />
+                </Field>
+                <Field error={err.coordinators?.[i]?.linkedinUrl?.message}>
+                  <Input type="url" placeholder="LinkedIn URL (https://…)" {...form.register(`coordinators.${i}.linkedinUrl`)} />
+                </Field>
+                <Field error={err.coordinators?.[i]?.websiteUrl?.message}>
+                  <Input type="url" placeholder="Website URL (https://…)" {...form.register(`coordinators.${i}.websiteUrl`)} />
+                </Field>
+                <ImageUploadField
+                  id={`coord-photo-${i}`}
+                  label="Photo"
+                  kind="eventTeamPhoto"
+                  {...(festId ? { ownerId: festId } : {})}
+                  aspect="1/1"
+                  value={form.watch(`coordinators.${i}.photoUrl`) ?? ""}
+                  onChange={(url) => form.setValue(`coordinators.${i}.photoUrl`, url, { shouldDirty: true, shouldValidate: true })}
+                  error={err.coordinators?.[i]?.photoUrl?.message}
+                  className="sm:col-span-3"
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -478,6 +564,7 @@ export const StudentPreview = ({ form, festSlug, festId }: { form: Form; festSlu
     registrationDeadline: v.registrationDeadline || undefined,
     waitlistEnabled: v.waitlistEnabled ?? false,
     entryFee: Number(v.entryFee) || 0,
+    paymentEnabled: v.paymentEnabled ?? false,
     posterUrl: v.posterUrl || undefined,
     rulebookUrl: v.rulebookUrl || undefined,
     prizePool: v.prizePool || undefined,

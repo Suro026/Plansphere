@@ -82,6 +82,10 @@ export const PERMISSIONS = [
   "upload:eventPoster",
   /** Arenas, tournament configuration, brackets, and any match — unscoped by arena. */
   "match:manage",
+  /** Save the fest's own merchant credentials and see payment status (never the secrets). */
+  "payment:configure",
+  /** Approve or reverse a refund that waits for staff, and resolve payments flagged for review. */
+  "payment:refund",
 
   // Super admin only
   "fest:create",
@@ -92,6 +96,8 @@ export const PERMISSIONS = [
   "certificate:publish",
   "staff:createAdmin",
   "platform:manage",
+  /** Approve or suspend a fest's payment account — the gate before any paid event can be published. */
+  "payment:approve",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -123,6 +129,8 @@ const ADMIN: Permission[] = [
   "staff:manage",
   "audit:read",
   "match:manage",
+  "payment:configure",
+  "payment:refund",
   "upload:festArtwork",
   "upload:eventPoster",
 ];
@@ -140,6 +148,7 @@ const SUPER_ADMIN: Permission[] = [
   "certificate:publish",
   "staff:createAdmin",
   "platform:manage",
+  "payment:approve",
 ];
 
 export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<Permission>> = {

@@ -83,6 +83,37 @@ describe("decideEntry (offline)", () => {
     expect(await scan("FF-NOTINROSTR")).toEqual({ result: "not-found" });
   });
 
+  it("never admits or feeds an entry whose payment is not verified", async () => {
+    await replaceRoster("ev1", [roster({ ticketCode: "FF-UNPAID0001", registrationId: "reg5", status: "pending_payment", paymentStatus: "pending", userName: "Not Paid" })]);
+    expect(await scan("FF-UNPAID0001")).toEqual({ result: "unpaid" });
+    expect(await decideMeal({ event: ev, code: "FF-UNPAID0001", scannedBy: "vol1", online: false, mealType: "lunch", servedOn: "2026-09-26" })).toEqual({ result: "unpaid" });
+    expect((await listQueue()).some((q) => q.registrationId === "reg5")).toBe(false);
+  });
+
+  it("applies the shared admission rule to every status and payment state", async () => {
+    const rows: Array<[string, Partial<RosterEntry>, string]> = [
+      ["FF-WAITLIST001", { status: "waitlisted" }, "waitlisted"],
+      ["FF-WAITLPAID01", { status: "waitlisted", paymentStatus: "paid" }, "waitlisted"],
+      ["FF-HOLDONLY001", { status: "pending_payment", paymentStatus: "pending" }, "unpaid"],
+      ["FF-FAILEDPAY01", { status: "confirmed", paymentStatus: "failed" }, "unpaid"],
+      ["FF-REFUNDPEND1", { status: "confirmed", paymentStatus: "refund_pending" }, "cancelled"],
+      ["FF-REFUNDED001", { status: "confirmed", paymentStatus: "refunded" }, "cancelled"],
+      ["FF-DRAFTTEAM01", { status: "draft", memberCount: 2 }, "draft"],
+      ["FF-DRAFTPAID001", { status: "draft", memberCount: 2, paymentStatus: "paid" }, "draft"],
+      ["FF-PAIDTICKET1", { status: "confirmed", paymentStatus: "paid" }, "ok"],
+      ["FF-FREETICKET1", { status: "confirmed" }, "ok"],
+    ];
+    await replaceRoster("ev1", rows.map(([ticketCode, over], i) => roster({ ticketCode, registrationId: `adm${i}`, ...over })));
+    for (const [code, , result] of rows) {
+      expect((await scan(code)).result, code).toBe(result);
+      const meal = await decideMeal({ event: ev, code, scannedBy: "vol1", online: false, mealType: "lunch", servedOn: "2026-09-26" });
+      expect(meal.result, `${code} meal`).toBe(result);
+    }
+    // Only the admitted ones reached the queue.
+    const queued = (await listQueue()).map((q) => q.registrationId);
+    expect(queued.filter((id) => id.startsWith("adm")).length).toBe(4);
+  });
+
   it("flags a ticket for a different event as wrong-event", async () => {
     expect(await scan("FF-QUIZONLY01")).toMatchObject({ result: "wrong-event" });
     expect(await scan("FF-QUIZONLY01", other)).toMatchObject({ result: "ok" });

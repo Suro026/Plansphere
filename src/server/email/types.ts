@@ -24,6 +24,7 @@ export const EMAIL_TEMPLATES = [
   "team_invite",
   "team_update",
   "waitlist_promoted",
+  "payment_due",
   "certificate_issued",
   "password_reset",
   "staff_invite",

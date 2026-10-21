@@ -1,5 +1,6 @@
 "use client";
 
+import { isAdmissible } from "@/core/models/admission";
 import * as React from "react";
 import Link from "next/link";
 import QRCode from "react-qr-code";
@@ -165,7 +166,7 @@ const RegistrationCard = ({
   const minimum = event?.teamSize.min ?? 1;
   const short = isTeam ? Math.max(0, minimum - accepted) : 0;
 
-  const live = registration.status !== "cancelled" && registration.status !== "waitlisted";
+  const live = isAdmissible(registration);
 
   return (
     <article className="panel p-3.5">
@@ -250,7 +251,10 @@ const RegistrationCard = ({
 const StatusTag = ({ entry }: { entry: Entry }) => {
   const { registration, attendance, event } = entry;
 
+  if (registration.paymentStatus === "refund_pending") return <Tag tone="neutral">Refund pending</Tag>;
+  if (registration.paymentStatus === "refunded") return <Tag tone="neutral">Refunded</Tag>;
   if (registration.status === "cancelled") return <Tag tone="neutral">Cancelled</Tag>;
+  if (registration.status === "pending_payment") return <Tag tone="outline">Payment due</Tag>;
   if (registration.status === "waitlisted") return <Tag tone="outline">Waitlisted</Tag>;
   if (attendance) return <Tag tone="accent">Checked in</Tag>;
   if (registration.status === "draft") {

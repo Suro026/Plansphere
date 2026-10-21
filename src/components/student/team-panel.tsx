@@ -104,7 +104,7 @@ export const TeamCard = ({ entry }: { entry: Entry }) => {
   const teamSize = event?.teamSize ?? { min: 1, max: registration.members.length };
   const shortfall = teamShortfall(registration, teamSize);
   const frozen = Boolean(attendance) || (event ? event.status === "ongoing" || event.status === "completed" || event.status === "cancelled" : false);
-  const canEdit = isLeader && !frozen && registration.status !== "cancelled";
+  const canEdit = isLeader && !frozen && registration.status !== "cancelled" && registration.status !== "pending_payment";
 
   return (
     <div className="panel p-3.5">
@@ -125,6 +125,8 @@ export const TeamCard = ({ entry }: { entry: Entry }) => {
             <Tag tone="accent" check>Checked in</Tag>
           ) : registration.status === "waitlisted" ? (
             <Tag tone="neutral">Waitlisted</Tag>
+          ) : registration.status === "pending_payment" ? (
+            <Tag tone="outline">Payment due</Tag>
           ) : registration.status === "draft" ? (
             <Tag tone="outline">Not confirmed yet</Tag>
           ) : (

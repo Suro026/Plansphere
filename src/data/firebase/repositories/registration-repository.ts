@@ -18,6 +18,7 @@ import {
   type TeamAction,
 } from "@/core/models/registration";
 import { attendanceSchema } from "@/core/models/attendance";
+import type { PaymentCheckoutResult } from "@/core/models/payment";
 import type { RegistrationQuery, RegistrationRepository } from "@/core/repositories/registration-repository";
 import { api } from "@/data/api-client";
 import { COLLECTIONS } from "../client";
@@ -173,6 +174,14 @@ export class FirestoreRegistrationRepository implements RegistrationRepository {
       const parsed = registrationSchema.safeParse(result.registration);
       if (!parsed.success) throw new Error("Server returned an unexpected registration shape");
       return parsed.data;
+    });
+  }
+
+  startPayment(id: string): Promise<PaymentCheckoutResult> {
+    return guard("Starting payment", async () => {
+      const result = await api<{ state: "paid" } | { state: "checkout"; checkout: { redirectUrl?: string }; amountPaise: number; expiresAt: number }>(`/api/registrations/${id}/payment`, { method: "POST" });
+      if (result.state === "paid") return { state: "paid" as const };
+      return { state: "checkout" as const, ...(result.checkout.redirectUrl ? { redirectUrl: result.checkout.redirectUrl } : {}), amountPaise: result.amountPaise, expiresAt: result.expiresAt };
     });
   }
 

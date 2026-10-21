@@ -163,12 +163,12 @@ export default function NewEventPage() {
           {step === 0 ? (
             <div className="flex flex-col gap-6">
               <BasicsFields form={form} festId={fest.id} />
-              <CoordinatorsFields form={form} />
+              <CoordinatorsFields form={form} festId={fest.id} />
             </div>
           ) : null}
           {step === 1 ? (
             <div className="flex flex-col gap-6">
-              <RegistrationFields form={form} />
+              <RegistrationFields form={form} festId={fest.id} />
               <ScanningFields form={form} />
             </div>
           ) : null}

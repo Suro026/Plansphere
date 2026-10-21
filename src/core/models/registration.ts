@@ -7,11 +7,15 @@ import {
   shortTextSchema,
 } from "./common";
 import { answersSchema } from "./registration-fields";
+import { registrationPaymentStatusSchema } from "./payment";
 import type { TeamSize } from "./event";
 
 /**
  * Where an entry stands.
  *
+ *   pending_payment  a seat held for a paid event until the payment is verified
+ *               server-side (or the hold expires). Not a ticket: nothing is
+ *               issued, admitted or counted as confirmed until it is paid.
  *   draft       a team that does not yet meet its event's minimum. It holds
  *               its seats — losing them while the last teammate is deciding
  *               would be the worst possible moment — but it is not a
@@ -20,7 +24,7 @@ import type { TeamSize } from "./event";
  *   waitlisted  no seat yet; promoted transactionally when one frees up
  *   cancelled   the seat is back
  */
-export const REGISTRATION_STATUSES = ["draft", "confirmed", "waitlisted", "cancelled"] as const;
+export const REGISTRATION_STATUSES = ["draft", "confirmed", "waitlisted", "cancelled", "pending_payment"] as const;
 export const registrationStatusSchema = z.enum(REGISTRATION_STATUSES);
 export type RegistrationStatus = z.infer<typeof registrationStatusSchema>;
 
@@ -32,6 +36,15 @@ export type RegistrationStatus = z.infer<typeof registrationStatusSchema>;
  * this, so it is one function rather than a condition repeated five times.
  */
 export const holdsSeat = (status: RegistrationStatus): boolean => status === "confirmed" || status === "draft";
+
+/**
+ * Does this entry occupy *capacity*? Everything that holds a seat, plus an
+ * unpaid hold: those seats are spoken for until the hold expires, so counters
+ * and capacity checks must include them. Deliberately separate from
+ * `holdsSeat`, which analytics and certificate eligibility use and which must
+ * not count an unpaid entry as a registration.
+ */
+export const occupiesSeat = (status: RegistrationStatus): boolean => holdsSeat(status) || status === "pending_payment";
 
 /** Is this entry live — neither cancelled nor waiting for a seat? */
 export const isActiveEntry = (status: RegistrationStatus): boolean => holdsSeat(status);
@@ -130,6 +143,16 @@ export const registrationSchema = z
      */
     joinCode: z.string().regex(/^[0-9A-HJ-NP-TV-Z]{6}$/).optional(),
     status: registrationStatusSchema.default("confirmed"),
+
+    /**
+     * Payment state. Absent on free entries and on everything created before
+     * payments existed, which therefore parse as `not_required`.
+     */
+    paymentStatus: registrationPaymentStatusSchema.default("not_required"),
+    /** What was charged, in paise (server-calculated from the event). */
+    amountPaise: z.number().int().min(0).optional(),
+    /** While `pending_payment`: when the held seat is released if still unpaid. */
+    holdExpiresAt: z.coerce.date().optional(),
 
     /**
      * Denormalised so the admin registration table and the scanner can render

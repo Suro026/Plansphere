@@ -1,3 +1,4 @@
+import { deletePaymentAccount, notifyPaymentAccountChange, suspendPaymentAccount } from "@/server/payments/account-change";
 import { z } from "zod";
 import { idSchema } from "@/core/models/common";
 import { updateFestSchema } from "@/core/models/fest";
@@ -132,6 +133,13 @@ export const PATCH = handler(async (request, context) => {
 
       await ref.update({ ownerId: input.ownerId, updatedAt: FieldValue.serverTimestamp() });
 
+      // The payment account belongs to whoever owned the fest when it was set up. The new owner starts from a
+      // suspended account and has to save, and have approved, credentials of their own.
+      if (await suspendPaymentAccount(id, "ownership_transferred")) {
+        await audit(caller, { action: "payment_account_suspended", summary: `Suspended the payment account of ${name} because ownership changed`, festId: id, subjectType: "fest", subjectId: id });
+        await notifyPaymentAccountChange(id, caller.uid, "Payment account suspended", `${name} changed owner, so its payment account was suspended. The new owner needs to set up and get approval for their own.`);
+      }
+
       await audit(caller, {
         action: "fest_transferred",
         summary: `${name} handed to ${ownerData.name ?? ownerData.fullName ?? ownerData.email ?? input.ownerId}`,
@@ -205,6 +213,8 @@ export const DELETE = handler(async (request, context) => {
     );
   }
 
+  // Nothing in a fest that can be deleted has payments, but its stored merchant credentials must not outlive it.
+  await deletePaymentAccount(id);
   await ref.delete();
 
   await audit(caller, {

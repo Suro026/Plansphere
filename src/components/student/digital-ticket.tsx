@@ -10,6 +10,7 @@ import { Kick, Reveal, Tag } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { formatClock } from "@/lib/utils";
 import { WALLET_SUPPORT } from "@/core/services/wallet";
+import { admissionBlock } from "@/core/models/admission";
 
 /**
  * The digital ticket — 2b.
@@ -46,6 +47,11 @@ export const DigitalTicket = ({
 }: DigitalTicketProps) => {
   const qrRef = React.useRef<HTMLDivElement>(null);
   const served = new Set(meals.map((m) => `${m.servedOn}_${m.mealType}`));
+  // A paid entry has no usable ticket until its payment is verified: no QR, nothing to screenshot.
+  // (A waitlisted entry keeps its code — it activates if a seat opens — but the gate will say so.)
+  const block = admissionBlock(registration);
+  // A draft team's ticket is not an entry yet either, so it shows no QR until the team is complete.
+  const valid = block !== "unpaid" && block !== "refunded" && block !== "draft";
 
   const download = async () => {
     const svg = qrRef.current?.querySelector("svg");
@@ -102,15 +108,30 @@ export const DigitalTicket = ({
       </div>
 
       <div className="px-[18px] pb-4">
-        <div ref={qrRef} className={`mx-auto rounded-md bg-white p-3 ${compact ? "max-w-[200px]" : "max-w-[280px]"}`}>
-          <QRCode value={ticketUrl(registration.ticketCode)} size={256} style={{ width: "100%", height: "auto" }} level="M" />
-        </div>
-        <div className="code mt-[11px] text-center text-[13px] tracking-[0.14em]">{registration.ticketCode}</div>
-        <div className="mt-[3px] text-center text-[11.5px] text-neutral-500">
-          {registration.status === "waitlisted"
-            ? "Waitlisted — this code activates if a seat opens."
-            : "Show this at the gate. No network needed."}
-        </div>
+        {valid ? (
+          <>
+            <div ref={qrRef} className={`mx-auto rounded-md bg-white p-3 ${compact ? "max-w-[200px]" : "max-w-[280px]"}`}>
+              <QRCode value={ticketUrl(registration.ticketCode)} size={256} style={{ width: "100%", height: "auto" }} level="M" />
+            </div>
+            <div className="code mt-[11px] text-center text-[13px] tracking-[0.14em]">{registration.ticketCode}</div>
+            <div className="mt-[3px] text-center text-[11.5px] text-neutral-500">
+              {registration.status === "waitlisted"
+                ? "Waitlisted — not valid for entry unless a seat opens and this entry is confirmed."
+                : "Show this at the gate. No network needed."}
+            </div>
+          </>
+        ) : (
+          <div className={`mx-auto grid place-items-center rounded-md bg-surface p-6 text-center ${compact ? "max-w-[200px]" : "max-w-[280px]"}`}>
+            <div className="text-[13.5px] font-medium">{block === "draft" ? "Team not complete yet" : block === "refunded" ? "Ticket withdrawn" : "Ticket not issued yet"}</div>
+            <div className="mt-1 text-[12px] text-neutral-500">
+              {block === "draft"
+                ? "Your seats are held, but this ticket isn’t valid for entry until enough teammates have joined. The QR appears here the moment your team is complete."
+                : block === "refunded"
+                  ? "This entry was cancelled and the payment is being returned."
+                  : "The QR appears here as soon as your payment is confirmed."}
+            </div>
+          </div>
+        )}
       </div>
 
       {attendance || mealSlots.length ? (
@@ -136,7 +157,7 @@ export const DigitalTicket = ({
         </div>
       ) : null}
 
-      {!compact ? (
+      {!compact && valid ? (
         <div className="ticket-actions border-t border-divider px-[18px] py-3">
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" className="flex-1" onClick={download}>

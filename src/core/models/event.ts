@@ -84,10 +84,20 @@ export const teamSizeSchema = z
 
 export type TeamSize = z.infer<typeof teamSizeSchema>;
 
+/**
+ * A person on an event's team. Name and contact were always there; the rest is
+ * optional and only shapes how the "Meet the team" section looks, so events
+ * created before it keep working exactly as they were.
+ */
 export const coordinatorSchema = z.object({
   name: shortTextSchema,
   phone: z.string().trim().max(20).optional(),
   email: z.string().email().optional(),
+  /** "Event lead", "Design head" … */
+  role: z.string().trim().max(80).optional(),
+  photoUrl: httpsUrlSchema.optional(),
+  linkedinUrl: httpsUrlSchema.optional(),
+  websiteUrl: httpsUrlSchema.optional(),
 });
 
 export type Coordinator = z.infer<typeof coordinatorSchema>;
@@ -153,6 +163,15 @@ export const eventSchema = z
 
     /** In rupees. 0 is free entry. */
     entryFee: z.number().int().min(0).max(1000000).default(0),
+
+    /**
+     * Collect `entryFee` online through the fest's payment account. Off by
+     * default and never inferred from the fee: an event with a fee and this
+     * switch off keeps today's behaviour (fee shown, collected outside
+     * Plansphere). The server refuses to publish a paid event unless the fest
+     * has an approved payment account.
+     */
+    paymentEnabled: z.boolean().default(false),
 
     posterUrl: httpsUrlSchema.optional(),
     /** The rulebook PDF, uploaded like any other asset — see `uploadKind`. */
@@ -248,6 +267,7 @@ const eventWritableFields = {
   registrationDeadline: calendarDateSchema.optional(),
   waitlistEnabled: z.boolean().default(false),
   entryFee: z.number().int().min(0).max(1000000).default(0),
+  paymentEnabled: z.boolean().default(false),
   posterUrl: httpsUrlSchema.optional(),
   rulebookUrl: httpsUrlSchema.optional(),
   rules: z.array(z.string().trim().max(500)).max(50).default([]),
@@ -332,6 +352,7 @@ export const duplicateEventFrom = (event: Event, newSlug: string): CreateEvent =
   registrationDeadline: event.registrationDeadline,
   waitlistEnabled: event.waitlistEnabled,
   entryFee: event.entryFee,
+  paymentEnabled: event.paymentEnabled,
   posterUrl: event.posterUrl,
   rulebookUrl: event.rulebookUrl,
   rules: event.rules,

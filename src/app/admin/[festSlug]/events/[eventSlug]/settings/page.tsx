@@ -216,7 +216,7 @@ export default function EventSettingsPage() {
                 </MetaRow>
                 <MetaRow label="Closes">{event.registrationDeadline ? `${formatCalendarDate(event.registrationDeadline)}, 23:59` : "With the event"}</MetaRow>
               </MetaList>
-              <RegistrationFields form={form} locked={{ teamSize: hasEntries, minCapacity: hasEntries ? event.registeredCount : undefined }} />
+              <RegistrationFields form={form} festId={fest.id} locked={{ teamSize: hasEntries, payment: hasEntries, minCapacity: hasEntries ? event.registeredCount : undefined }} />
             </div>
           ) : null}
 
@@ -279,7 +279,7 @@ export default function EventSettingsPage() {
             </div>
           ) : null}
 
-          {section === "coordinators" ? <CoordinatorsFields form={form} /> : null}
+          {section === "coordinators" ? <CoordinatorsFields form={form} festId={fest.id} /> : null}
 
           {section === "danger" ? (
             <div className="rounded-md p-[17px] shadow-[inset_0_0_0_1px_var(--color-neutral-700)]">

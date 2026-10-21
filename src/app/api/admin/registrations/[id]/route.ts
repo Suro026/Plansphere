@@ -2,7 +2,9 @@ import { z } from "zod";
 import { ApiError, handler, ok, readBody, requireFestAccess, requirePermission } from "@/server/api";
 import { COLLECTIONS, FieldValue, adminDb } from "@/server/firebase-admin";
 import { audit } from "@/server/audit";
-import { announcePromotion } from "@/server/waitlist";
+import { eventRequiresPayment } from "@/core/models/payment";
+import { assertOrderingAllowed, type StoredAccount } from "@/server/payments/account";
+import { announcePromoted, planCancellation, writeCancellation, writeHold } from "@/server/payments/lifecycle";
 import { notify } from "@/server/notify";
 
 const actionSchema = z.object({
@@ -51,39 +53,24 @@ export const POST = handler(async (request, context) => {
           `Only ${Math.max(0, capacity - registered)} seat(s) free and this entry needs ${seats}. Raise capacity first.`,
         );
       }
-      tx.update(regRef, { status: "confirmed", updatedAt: FieldValue.serverTimestamp() });
+      // On a paid event a promotion offers a seat to pay for; it never grants a free ticket.
+      let hold: ReturnType<typeof writeHold> | null = null;
+      if (eventRequiresPayment(event)) {
+        const accountSnap = await tx.get(db.collection(COLLECTIONS.paymentAccounts).doc(String(reg.festId)));
+        const account = assertOrderingAllowed(accountSnap.exists ? (accountSnap.data() as StoredAccount) : null);
+        hold = writeHold(tx, db, { registrationId: id, eventId: String(reg.eventId), festId: String(reg.festId), userId: String(reg.userId), event, account });
+      }
+      tx.update(regRef, { ...(hold ?? { status: "confirmed" }), updatedAt: FieldValue.serverTimestamp() });
       tx.update(eventRef, { registeredCount: FieldValue.increment(seats), updatedAt: FieldValue.serverTimestamp() });
       tx.update(festRef, { "stats.registrations": FieldValue.increment(seats) });
-      return { kind: "promoted" as const, reg, seats };
+      return { kind: "promoted" as const, reg, seats, needsPayment: hold !== null };
     }
 
     // cancel
     if (reg.status === "cancelled") return { kind: "noop" as const, reg, seats };
-    const wasConfirmed = reg.status === "confirmed";
-
-    let promote: FirebaseFirestore.QueryDocumentSnapshot | null = null;
-    if (wasConfirmed && event.waitlistEnabled === true) {
-      const waiting = await tx.get(
-        db.collection(COLLECTIONS.registrations).where("eventId", "==", reg.eventId).where("status", "==", "waitlisted"),
-      );
-      const ordered = [...waiting.docs].sort(
-        (a, b) => (a.data().createdAt?.toMillis?.() ?? 0) - (b.data().createdAt?.toMillis?.() ?? 0),
-      );
-      const after = registered - seats;
-      promote = ordered.find((d) => capacity === 0 || after + Number(d.data().seats ?? 1) <= capacity) ?? null;
-    }
-
-    tx.update(regRef, { status: "cancelled", cancelledAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    if (wasConfirmed) {
-      let delta = -seats;
-      if (promote) {
-        tx.update(promote.ref, { status: "confirmed", updatedAt: FieldValue.serverTimestamp() });
-        delta += Number(promote.data().seats ?? 1);
-      }
-      tx.update(eventRef, { registeredCount: FieldValue.increment(delta), updatedAt: FieldValue.serverTimestamp() });
-      tx.update(festRef, { "stats.registrations": FieldValue.increment(delta) });
-    }
-    return { kind: "cancelled" as const, reg, seats, promoted: promote ? { id: promote.id, userId: String(promote.data().userId) } : null };
+    const plan = await planCancellation(tx, db, regSnap, eventSnap);
+    const written = writeCancellation(tx, plan, "staff");
+    return { kind: "cancelled" as const, reg, seats, promoted: written.promoted, refundOwed: written.refundOwed };
   });
 
   if (outcome.kind === "promoted") {
@@ -95,7 +82,7 @@ export const POST = handler(async (request, context) => {
       subjectType: "registration",
       subjectId: id,
     });
-    await announcePromotion(id);
+    await announcePromoted({ id, userId: String(outcome.reg.userId), needsPayment: outcome.needsPayment });
   }
 
   if (outcome.kind === "cancelled") {
@@ -109,7 +96,7 @@ export const POST = handler(async (request, context) => {
       details: { reason },
     });
     // The entry that moved up because of this cancellation is told too.
-    if (outcome.promoted) await announcePromotion(outcome.promoted.id);
+    await announcePromoted(outcome.promoted);
     await notify({
       userId: String(outcome.reg.userId),
       type: "registration_cancelled",

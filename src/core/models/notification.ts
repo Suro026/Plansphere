@@ -10,6 +10,9 @@ import { auditFieldsSchema, idSchema, shortTextSchema } from "./common";
 export const NOTIFICATION_TYPES = [
   "registration_confirmed",
   "registration_cancelled",
+  "payment_required",
+  "refund_update",
+  "payment_account",
   "team_invite",
   "team_update",
   "waitlist_promoted",
@@ -68,6 +71,9 @@ export type CreateNotification = z.infer<typeof createNotificationSchema>;
 export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
   registration_confirmed: "Registration",
   registration_cancelled: "Registration",
+  payment_required: "Payment",
+  refund_update: "Refund",
+  payment_account: "Payment account",
   team_invite: "Team",
   team_update: "Team",
   waitlist_promoted: "Waitlist",

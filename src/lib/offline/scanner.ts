@@ -3,8 +3,9 @@
 import * as React from "react";
 import type { Repositories } from "@/core/repositories";
 import type { Event } from "@/core/models/event";
-import { memberKeyFor, type MealType, type ScanMember, type ScanOutcome } from "@/core/models/attendance";
+import { blockOutcome, memberKeyFor, type MealType, type ScanMember, type ScanOutcome } from "@/core/models/attendance";
 import { RepositoryError } from "@/core/models/common";
+import { admissionBlock } from "@/core/models/admission";
 import {
   countCheckins,
   dequeue,
@@ -86,6 +87,7 @@ export const refreshRoster = async (repos: Repositories, event: Event): Promise<
       teamName: r.teamName,
       memberCount: members.length,
       status: r.status,
+      ...(r.paymentStatus && r.paymentStatus !== "not_required" ? { paymentStatus: r.paymentStatus } : {}),
       members,
       // Everything manual search matches on, flattened once here so a lookup
       // at the gate is a substring test over cached text rather than a query.
@@ -131,6 +133,9 @@ export type PeekResult =
   | { result: "not-found" }
   | { result: "wrong-event"; expectedEventTitle: string }
   | { result: "cancelled" }
+  | { result: "waitlisted" }
+  | { result: "draft" }
+  | { result: "unpaid" }
   | {
       result: "ready";
       registration: { id: string; userName: string; ticketCode: string; teamName?: string; memberCount: number };
@@ -146,7 +151,8 @@ export const peekEntry = async (eventId: string, code: string): Promise<PeekResu
     const elsewhere = await findAnywhere(code);
     return elsewhere ? { result: "wrong-event", expectedEventTitle: "another event" } : { result: "not-found" };
   }
-  if (entry.status === "cancelled") return { result: "cancelled" };
+  const block = admissionBlock(entry);
+  if (block) return blockOutcome(block);
 
   const existing = await getCheckin(eventId, entry.registrationId);
   const done = new Set<string>(existing ? (existing.members.length ? existing.members : entry.members.map((m) => m.key)) : []);
@@ -166,7 +172,8 @@ export const peekMeal = async (eventId: string, code: string, mealType: MealType
     const elsewhere = await findAnywhere(code);
     return elsewhere ? { result: "wrong-event", expectedEventTitle: "another event" } : { result: "not-found" };
   }
-  if (entry.status === "cancelled") return { result: "cancelled" };
+  const block = admissionBlock(entry);
+  if (block) return blockOutcome(block);
 
   const record = await getMealRecord(eventId, entry.registrationId, servedOn, mealType);
   const done = new Set<string>(record.members.length ? record.members : entry.members.slice(0, record.served).map((m) => m.key));
@@ -214,9 +221,11 @@ export const decideEntry = async (input: DecideInput): Promise<ScanOutcome> => {
     return outcome;
   }
 
-  if (entry.status === "cancelled") {
-    await pushHistory({ id: uid(), eventId: event.id, kind: "entry", at: Date.now(), ticketCode: code, userName: entry.userName, teamName: entry.teamName, outcome: "cancelled", queued: false });
-    return { result: "cancelled" };
+  const block = admissionBlock(entry);
+  if (block) {
+    const refused = blockOutcome(block);
+    await pushHistory({ id: uid(), eventId: event.id, kind: "entry", at: Date.now(), ticketCode: code, userName: entry.userName, teamName: entry.teamName, outcome: refused.result, queued: false });
+    return refused;
   }
 
   const existing = await getCheckin(event.id, entry.registrationId);
@@ -306,7 +315,12 @@ export const decideMeal = async (input: DecideInput & { mealType: MealType; serv
     await pushHistory({ id: uid(), eventId: event.id, kind: "meal", at: Date.now(), ticketCode: code, userName: "—", outcome: "not-found", queued: false, mealType: input.mealType });
     return { result: "not-found" };
   }
-  if (entry.status === "cancelled") return { result: "cancelled" };
+  const block = admissionBlock(entry);
+  if (block) {
+    const refused = blockOutcome(block);
+    await pushHistory({ id: uid(), eventId: event.id, kind: "meal", at: Date.now(), ticketCode: code, userName: entry.userName, teamName: entry.teamName, outcome: refused.result, queued: false, mealType: input.mealType });
+    return refused;
+  }
 
   const record = await getMealRecord(event.id, entry.registrationId, input.servedOn, input.mealType);
 

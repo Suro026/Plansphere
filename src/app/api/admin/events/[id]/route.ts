@@ -6,6 +6,8 @@ import { compact, docToJson } from "@/server/serialize";
 import { emailService } from "@/server/email";
 import { eventCancelledEmail, eventUpdatedEmail } from "@/server/email/templates";
 import { activeParticipants, notifyMany } from "@/server/notify";
+import { assertPaidEventAllowed } from "@/server/payments/event-rules";
+import { handleEventCancelled } from "@/server/payments/lifecycle";
 
 /**
  * PATCH /api/admin/events/[id] — edit an event.
@@ -48,6 +50,27 @@ export const PATCH = handler(async (request, context) => {
     throw ApiError.unprocessable("Team size and entry type lock once the first team registers.");
   }
 
+  // Online payment: the fee and the switch are fixed once anyone has registered (a ticket
+  // that was free must never become paid, and the price of a paid one must not move under
+  // people who already paid), and a paid event only goes live on an approved payment account.
+  const paymentChanged = input.paymentEnabled !== undefined && input.paymentEnabled !== (current.paymentEnabled === true);
+  const feeChanged = input.entryFee !== undefined && input.entryFee !== Number(current.entryFee ?? 0);
+  if (paymentChanged || (feeChanged && current.paymentEnabled === true)) {
+    const anyEntry = await db.collection(COLLECTIONS.registrations).where("eventId", "==", id).limit(1).get();
+    if (!anyEntry.empty) throw ApiError.unprocessable("Online payment and the entry fee lock once the first person registers.");
+  }
+  const nextPaid = input.paymentEnabled ?? (current.paymentEnabled === true);
+  const nextStatus = input.status ?? String(current.status ?? "draft");
+  if (nextPaid && (paymentChanged || feeChanged || (nextStatus === "published" && current.status !== "published"))) {
+    await assertPaidEventAllowed({
+      festId: String(current.festId),
+      paymentEnabled: nextPaid,
+      entryFee: input.entryFee ?? Number(current.entryFee ?? 0),
+      status: nextStatus,
+      publishing: nextStatus === "published",
+    });
+  }
+
   if (input.slug !== undefined && input.slug !== current.slug) {
     const clash = await db
       .collection(COLLECTIONS.events)
@@ -61,6 +84,13 @@ export const PATCH = handler(async (request, context) => {
   // Never let a client write the counter, whatever the body says.
   const { ...changes } = input as Record<string, unknown>;
   delete changes.registeredCount;
+
+  // Cancelling a paid event owes money back. The obligation is written in the same update that cancels the
+  // event, so it survives anything that happens afterwards in this request (a timeout, a failed email, a provider
+  // outage): the payments job finishes it, and staff can resume it from the event.
+  if (input.status === "cancelled" && current.status !== "cancelled" && current.paymentEnabled === true) {
+    (changes as Record<string, unknown>).refundsPending = true;
+  }
 
   // Archiving and restoring stamp the timestamp the way the fest-level
   // equivalent does — present while archived, cleared the moment it isn't.
@@ -121,7 +151,7 @@ export const PATCH = handler(async (request, context) => {
         userId: r.userId,
         type: cancelled ? ("event_cancelled" as const) : ("event_updated" as const),
         title: cancelled ? `${title} has been cancelled` : `${title} has changed`,
-        body: cancelled ? "Your entry no longer admits anyone." : logistics.join(" · "),
+        body: cancelled ? (current.paymentEnabled === true ? "Your entry no longer admits anyone. Anything you paid is being refunded in full." : "Your entry no longer admits anyone.") : logistics.join(" · "),
         link: cancelled ? "/my-events" : `/registered/${r.registrationId}`,
         festId: String(current.festId),
         eventId: id,
@@ -135,6 +165,13 @@ export const PATCH = handler(async (request, context) => {
           : eventUpdatedEmail({ to: r.email, recipientName: r.name, eventTitle: title, festName, changes: logistics, registrationId: r.registrationId, meta: meta(r) }),
       ),
     );
+  }
+
+  // A cancelled paid event: unpaid seat holds are released and every payment is refunded in full. Done here as far
+  // as the time allows; whatever is left stays marked on the event (`refundsPending`) and the payments job continues.
+  // A failure here must never turn a cancellation that has happened into an error for the organizer.
+  if (cancelled && current.paymentEnabled === true) {
+    await handleEventCancelled(id, { budgetMs: 20_000 }).catch((error: unknown) => console.warn("[payments] event cancellation will be finished by the payments job", error instanceof Error ? error.message : "unknown"));
   }
 
   const saved = await ref.get();

@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const querySchema = z.object({
-  kind: z.enum(["festBanner", "festLogo", "festHero", "festThumbnail", "festSocial", "eventPoster", "eventRulebook", "certificateTemplate", "profilePhoto", "eventHeadIdentity"]),
+  kind: z.enum(["festBanner", "festLogo", "festHero", "festThumbnail", "festSocial", "eventPoster", "eventRulebook", "eventTeamPhoto", "certificateTemplate", "profilePhoto", "eventHeadIdentity"]),
   /** The fest id for fest-owned kinds; ignored for profile photos (always self). */
   id: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/).optional(),
 });

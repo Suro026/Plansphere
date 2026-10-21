@@ -424,11 +424,17 @@ const Scanner = () => {
       );
     }
 
-    // not-found / wrong-event / cancelled
-    const title = outcome.result === "cancelled" ? "Cancelled" : outcome.result === "wrong-event" ? "Wrong event" : "Not a valid ticket";
+    // not-found / wrong-event / cancelled / unpaid
+    const title = outcome.result === "cancelled" ? "Cancelled" : outcome.result === "waitlisted" ? "On the waitlist" : outcome.result === "draft" ? "Team not complete" : outcome.result === "unpaid" ? "Payment pending" : outcome.result === "wrong-event" ? "Wrong event" : "Not a valid ticket";
     const body =
       outcome.result === "cancelled"
         ? "This registration was cancelled. Send them to the help desk."
+        : outcome.result === "draft"
+          ? "This team hasn’t reached its minimum size, so its ticket isn’t valid yet. Send them to the help desk."
+          : outcome.result === "waitlisted"
+          ? "This entry is on the waitlist — no seat is held. Send them to the help desk."
+          : outcome.result === "unpaid"
+          ? "This seat hasn’t been paid for, so the pass isn’t valid yet. Send them to the help desk."
         : outcome.result === "wrong-event"
           ? `This ticket is for ${outcome.expectedEventTitle}. Send them to that gate.`
           : "This code doesn’t match any registration for this event. It may be for a different fest, or the QR may have been altered.";

@@ -204,6 +204,17 @@ export async function GET(request: Request) {
     };
   });
 
+  // 11. Paid registration keeping up: is the payments job running, are holds
+  //     and refunds being cleared, has any refund given up? Reports "ok" with
+  //     nothing to say while payments are off and nothing is waiting.
+  checks.payments = await step(async () => {
+    if (!admin) throw new Error("server module did not load");
+    const { paymentsHealth } = await import("@/server/payments/housekeeping");
+    const health = await paymentsHealth();
+    if (!health.ok) throw new Error(health.problems.join("; "));
+    return { ...health };
+  });
+
   const healthy = Object.values(checks).every((c) => c.ok);
   const response = NextResponse.json(
     { ok: healthy, checkedAt: new Date().toISOString(), detail: verbose ? "full" : "redacted", checks: verbose ? checks : redact(checks) },

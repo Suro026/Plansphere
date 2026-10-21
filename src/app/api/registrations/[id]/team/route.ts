@@ -44,6 +44,10 @@ export const POST = handler(async (request, context) => {
 
     if (reg.status === "cancelled") throw ApiError.unprocessable("This entry was cancelled.");
     if (reg.type !== "team") throw ApiError.unprocessable("This is a solo entry; there is no team to manage.");
+    // The roster is frozen while the seat is awaiting payment: a roster change must never be able to confirm an unpaid entry.
+    if (reg.status === "pending_payment" && input.action !== "rename") {
+      throw ApiError.conflict("Complete the payment first — the team can be changed once the entry is confirmed.");
+    }
 
     const members = ((reg.members ?? []) as MemberDoc[]).map((m) => ({ ...m, email: String(m.email).toLowerCase() }));
     const isLeader = reg.userId === caller.uid;

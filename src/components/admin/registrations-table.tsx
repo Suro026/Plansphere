@@ -8,6 +8,8 @@ import type { Attendance } from "@/core/models/attendance";
 import type { Event } from "@/core/models/event";
 import type { ScanOutcome } from "@/core/models/attendance";
 import { RepositoryError } from "@/core/models/common";
+import { PAYMENT_STATUS_LABELS, formatRupees } from "@/core/models/payment";
+import { api } from "@/data/api-client";
 import { hasAtLeast } from "@/core/models/user";
 import { useAuth, useRepositories } from "@/components/providers";
 import { useFest } from "@/components/shell/admin-shell";
@@ -38,7 +40,11 @@ export interface RegistrationsTableProps {
 const statusTag = (r: Registration, att?: Attendance) => {
   if (att) return <Tag tone="accent" check>Checked in</Tag>;
   if (r.status === "waitlisted") return <Tag tone="neutral">Waitlisted</Tag>;
+  if (r.paymentStatus === "refund_pending") return <Tag tone="neutral">Refund pending</Tag>;
+  if (r.paymentStatus === "refunded") return <Tag tone="neutral">Refunded</Tag>;
   if (r.status === "cancelled") return <Tag tone="neutral">Cancelled</Tag>;
+  if (r.paymentStatus === "needs_review") return <Tag tone="outline">Payment review</Tag>;
+  if (r.status === "pending_payment") return <Tag tone="outline">Payment due</Tag>;
   if (r.status === "draft") return <Tag tone="outline">Draft team</Tag>;
   return <Tag tone="neutral">Confirmed</Tag>;
 };
@@ -79,7 +85,7 @@ export const RegistrationsTable = ({ registrations, attendance, events, event, l
 
   const counts = React.useMemo(() => {
     const all = registrations ?? [];
-    const seated = (r: Registration) => r.status === "confirmed" || r.status === "draft";
+    const seated = (r: Registration) => r.status === "confirmed" || r.status === "draft" || r.status === "pending_payment";
     return {
       total: all.length,
       confirmed: all.filter((r) => r.status === "confirmed").length,
@@ -156,6 +162,15 @@ export const RegistrationsTable = ({ registrations, attendance, events, event, l
           break;
         case "cancelled":
           toast.error("That registration was cancelled");
+          break;
+        case "draft":
+          toast.error("That team isn’t complete yet — its ticket isn’t valid for entry");
+          break;
+        case "waitlisted":
+          toast.error("That registration is on the waitlist — promote it first");
+          break;
+        case "unpaid":
+          toast.error("That registration hasn't been paid for yet");
           break;
       }
     } catch (error) {
@@ -240,7 +255,8 @@ export const RegistrationsTable = ({ registrations, attendance, events, event, l
                 const college = r.answers?.college ?? r.members.find((m) => m.isLeader)?.college ?? r.members[0]?.college ?? "—";
                 const phone = r.answers?.phone ?? r.members.find((m) => m.isLeader)?.phone ?? r.members[0]?.phone ?? "—";
                 const eventForRow = event ?? events.find((e) => e.id === r.eventId);
-                const payment = !eventForRow?.entryFee ? "Free" : `₹${eventForRow.entryFee.toLocaleString("en-IN")}`;
+                const fee = !eventForRow?.entryFee ? "Free" : `₹${eventForRow.entryFee.toLocaleString("en-IN")}`;
+                const payment = r.paymentStatus && r.paymentStatus !== "not_required" ? `${fee} · ${PAYMENT_STATUS_LABELS[r.paymentStatus]}` : fee;
                 return (
                   <tr key={r.id}>
                     {event ? null : <td className="max-w-[180px] truncate">{eventTitle(r.eventId)}</td>}
@@ -323,7 +339,7 @@ export const RegistrationsTable = ({ registrations, attendance, events, event, l
 
 const RegistrationDetail = ({ registration: r, attendance: att, isAdmin, onDone }: { registration: Registration; attendance?: Attendance; isAdmin: boolean; onDone: () => void }) => {
   const repos = useRepositories();
-  const [busy, setBusy] = React.useState<"promote" | "cancel" | null>(null);
+  const [busy, setBusy] = React.useState<"promote" | "cancel" | "refund" | null>(null);
   const [confirmCancel, setConfirmCancel] = React.useState(false);
 
   const act = async (action: "promote" | "cancel") => {
@@ -348,7 +364,40 @@ const RegistrationDetail = ({ registration: r, attendance: att, isAdmin, onDone 
         <MetaRow label="Seats">{r.seats}</MetaRow>
         {att ? <MetaRow label="Entry">{formatClock(att.scannedAt)}{att.gate ? ` · ${att.gate}` : ""} · {att.method}{att.scannedByName ? ` · by ${att.scannedByName}` : ""}</MetaRow> : null}
         {r.cancelledAt ? <MetaRow label="Cancelled">{formatRelative(r.cancelledAt)}</MetaRow> : null}
+        {r.paymentStatus && r.paymentStatus !== "not_required" ? (
+          <MetaRow label="Payment">
+            {PAYMENT_STATUS_LABELS[r.paymentStatus]}
+            {r.amountPaise ? ` · ${formatRupees(r.amountPaise)}` : ""}
+          </MetaRow>
+        ) : null}
       </MetaList>
+      {isAdmin && (r.paymentStatus === "refund_pending" || r.paymentStatus === "needs_review") ? (
+        <div className="rounded-md bg-surface p-3">
+          <div className="mb-2 text-[12.5px] text-neutral-300">
+            {r.paymentStatus === "refund_pending"
+              ? "This entry was cancelled after payment. Approving sends the money back to the payer."
+              : "This payment needs a person to look at it — either money arrived that doesn’t match the amount due, or the fest’s payment account changed under an unpaid hold. Resolving returns any money captured and releases the seat."}
+          </div>
+          <Button
+            variant="secondary"
+            loading={busy === "refund"}
+            onClick={async () => {
+              setBusy("refund");
+              try {
+                await api(`/api/admin/payments/${r.id}/refund`, { method: "POST", body: { action: r.paymentStatus === "refund_pending" ? "approve" : "review" } });
+                toast.success("Refund started");
+                onDone();
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Couldn’t start the refund");
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            {r.paymentStatus === "refund_pending" ? "Approve refund" : "Resolve payment"}
+          </Button>
+        </div>
+      ) : null}
       <div>
         <Kick className="mb-2">{r.members.length > 1 ? "Members" : "Participant"}</Kick>
         <div className="flex flex-col gap-2">

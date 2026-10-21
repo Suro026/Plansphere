@@ -29,6 +29,40 @@ describe("DigitalTicket", () => {
   });
 });
 
+describe("DigitalTicket — who gets a QR", () => {
+  const team = { teamName: "Null Pointers", members: [...registration().members, { name: "Arjun", email: "arjun@x.test", isLeader: false, inviteStatus: "pending" as const }] };
+  const show = (over: Parameters<typeof registration>[0]) => render(<DigitalTicket registration={registration({ ...team, ...over })} festName="Bits2Bytes" />);
+
+  it("shows no QR for a draft team — free or paid — and says the ticket is not valid yet", () => {
+    for (const paymentStatus of [undefined, "not_required", "paid"] as const) {
+      const { container, unmount } = show({ status: "draft", ...(paymentStatus ? { paymentStatus } : {}) });
+      expect(container.querySelector("svg"), String(paymentStatus)).toBeNull();
+      expect(screen.getByText("Team not complete yet")).toBeInTheDocument();
+      expect(screen.getByText(/isn’t valid for entry until enough teammates have joined/)).toBeInTheDocument();
+      // No code to read out or screenshot, and no download/print/wallet actions.
+      expect(screen.queryByText("FF-7K2M9QX4TB")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Download PNG/ })).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("shows the QR the moment the same team is confirmed", () => {
+    const { container } = show({ status: "confirmed" });
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(screen.getAllByText("FF-7K2M9QX4TB").length).toBeGreaterThan(0);
+  });
+
+  it("still hides the QR for an unpaid or refunded entry, with its own wording", () => {
+    const unpaid = show({ status: "pending_payment", paymentStatus: "pending" });
+    expect(unpaid.container.querySelector("svg")).toBeNull();
+    expect(screen.getByText("Ticket not issued yet")).toBeInTheDocument();
+    unpaid.unmount();
+    const refunded = show({ status: "confirmed", paymentStatus: "refund_pending" });
+    expect(refunded.container.querySelector("svg")).toBeNull();
+    expect(screen.getByText("Ticket withdrawn")).toBeInTheDocument();
+  });
+});
+
 describe("VerifySearch", () => {
   it("rejects a malformed certificate number without navigating", async () => {
     const user = userEvent.setup();

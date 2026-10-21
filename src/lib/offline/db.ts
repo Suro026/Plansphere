@@ -90,6 +90,8 @@ export interface RosterEntry {
   teamName?: string;
   memberCount: number;
   status: RegistrationStatus;
+  /** Absent for free and legacy entries. With `status`, this is all the admission rule needs. */
+  paymentStatus?: string;
   /** Everyone on the entry — what the gate ticks off one at a time. */
   members: RosterMember[];
   /** Lowercased name/team/phone/id, joined, for manual search with no network. */
@@ -122,7 +124,7 @@ export interface HistoryEntry {
   ticketCode: string;
   userName: string;
   teamName?: string;
-  outcome: "ok" | "already-recorded" | "not-found" | "cancelled" | "wrong-event";
+  outcome: "ok" | "already-recorded" | "not-found" | "cancelled" | "wrong-event" | "waitlisted" | "draft" | "unpaid";
   queued: boolean;
   mealType?: string;
   /** Where the scan was taken, for the history table. */

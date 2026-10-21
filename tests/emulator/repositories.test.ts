@@ -161,6 +161,24 @@ describe("AttendanceRepository.recordScan (volunteer, online)", () => {
     expect((await repos.attendance.recordScan({ ticketCode: "FF-CANCELLED1", eventId: "ev1", scannedBy: volunteer.uid })).result).toBe("cancelled");
   });
 
+  it("refuses an entry whose payment is not verified, and admits it once it is", async () => {
+    await seedRegistration("reg-unpaid", { status: "pending_payment", paymentStatus: "pending", ticketCode: "FF-UNPAYD0001" });
+    await seedRegistration("reg-paid", { status: "confirmed", paymentStatus: "paid", ticketCode: "FF-PAYDTWK002" });
+    await clientSignIn(volunteer);
+    expect(await repos.attendance.recordScan({ ticketCode: "FF-UNPAYD0001", eventId: "ev1", scannedBy: volunteer.uid })).toEqual({ result: "unpaid" });
+    expect((await repos.attendance.recordScan({ ticketCode: "FF-PAYDTWK002", eventId: "ev1", scannedBy: volunteer.uid })).result).toBe("ok");
+    expect(await repos.attendance.countByEvent("ev1")).toBe(1);
+  });
+
+  it("refuses an incomplete (draft) team at the online gate", async () => {
+    await seedRegistration("reg-draft", { status: "draft", ticketCode: "FF-DRAFTTEM01" });
+    await seedRegistration("reg-draftpaid", { status: "draft", paymentStatus: "paid", ticketCode: "FF-DRAFTPYD01" });
+    await clientSignIn(volunteer);
+    expect(await repos.attendance.recordScan({ ticketCode: "FF-DRAFTTEM01", eventId: "ev1", scannedBy: volunteer.uid })).toEqual({ result: "draft" });
+    expect(await repos.attendance.recordScan({ ticketCode: "FF-DRAFTPYD01", eventId: "ev1", scannedBy: volunteer.uid })).toEqual({ result: "draft" });
+    expect(await repos.attendance.countByEvent("ev1")).toBe(0);
+  });
+
   it("a student cannot record a scan", async () => {
     await seedRegistration("reg1");
     await clientSignIn(student);

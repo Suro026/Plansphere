@@ -176,6 +176,49 @@ export const teamUpdateEmail = (input: {
 
 /* ═══════════════════════════ 4. Waitlist promotion ═══════════════════════════ */
 
+/**
+ * A seat opened up on a **paid** event. Unlike `waitlistPromotedEmail` this is
+ * not a confirmation: the entry holds a seat only until `holdMinutes` pass, and
+ * becomes a ticket when the payment is verified.
+ */
+export const paymentDueEmail = (input: {
+  to: string;
+  recipientName: string;
+  eventTitle: string;
+  festName: string;
+  amountLabel: string;
+  holdMinutes: number;
+  teamName?: string;
+  registrationId: string;
+  meta?: Meta;
+}): EmailMessage => {
+  const link = `${appUrl()}/registered/${input.registrationId}`;
+  const details: Array<[string, string | undefined]> = [
+    ["Event", input.eventTitle],
+    ["Fest", input.festName],
+    ["Team", input.teamName],
+    ["Amount", input.amountLabel],
+  ];
+  const text = [
+    `Hello ${input.recipientName},`,
+    "",
+    `A seat opened up for "${input.eventTitle}" at ${input.festName}. It is held for you for ${input.holdMinutes} minutes — pay to confirm it.`,
+    "",
+    ...textRows(details),
+    "",
+    "Complete your payment:",
+    link,
+    ...signoff,
+  ].join("\n");
+  const html = shell(
+    "A seat opened up — pay to confirm it",
+    p(`Hello ${escapeHtml(input.recipientName)}, a seat opened up for <strong>${escapeHtml(input.eventTitle)}</strong> at ${escapeHtml(input.festName)}. It is held for you for <strong>${input.holdMinutes} minutes</strong>; your ticket is issued once the payment is verified.`) +
+      rows(details) +
+      button(link, "Complete payment"),
+  );
+  return { to: input.to, subject: `Pay to confirm your seat — ${input.eventTitle}`, text, html, template: "payment_due", meta: input.meta };
+};
+
 export const waitlistPromotedEmail = (input: {
   to: string;
   recipientName: string;

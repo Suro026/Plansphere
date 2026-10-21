@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { admissionBlock } from "@/core/models/admission";
+import { blockOutcome } from "@/core/models/attendance";
 import { handler, ok, readBody, requireFestAccess, requirePermission } from "@/server/api";
 import { COLLECTIONS, FieldValue, adminDb } from "@/server/firebase-admin";
 import { audit } from "@/server/audit";
@@ -41,7 +43,8 @@ export const POST = handler(async (request) => {
     const other = await db.collection(COLLECTIONS.events).doc(String(reg.eventId)).get();
     return ok({ result: "wrong-event", expectedEventTitle: String(other.data()?.title ?? reg.eventTitle) });
   }
-  if (reg.status === "cancelled") return ok({ result: "cancelled" });
+  const block = admissionBlock({ status: reg.status, paymentStatus: reg.paymentStatus });
+  if (block) return ok(blockOutcome(block));
 
   const attRef = db.collection(COLLECTIONS.attendance).doc(regSnap.id);
   const actorSnap = await db.collection(COLLECTIONS.users).doc(caller.uid).get();

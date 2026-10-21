@@ -8,6 +8,7 @@ import { AdminPage, useFest } from "@/components/shell/admin-shell";
 import { useAuth, useRepositories } from "@/components/providers";
 import { FestFields, festFormSchema, fromFest, toUpdateFest, useFestForm } from "@/components/admin/fest-form";
 import { useFestAction } from "@/components/admin/platform-api";
+import { PaymentAccountPanel } from "@/components/admin/payment-account-panel";
 import { RegistrationFieldsEditor } from "@/components/admin/registration-fields-editor";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogContent } from "@/components/ui/overlays";
@@ -138,6 +139,16 @@ export default function FestSettingsPage() {
           />
         </section>
       ) : null}
+
+      <section className="mt-10 border-t border-divider pt-7" aria-labelledby="fest-payments">
+        <h2 id="fest-payments" className="mb-1 text-[19px]">
+          Online payment
+        </h2>
+        <p className="mb-5 max-w-[68ch] text-[13.5px] text-neutral-400">
+          Optional. Free events never need this. To collect an entry fee through Plansphere, connect {fest.name}’s own merchant account here, then switch on “Collect the entry fee online” for the event.
+        </p>
+        <PaymentAccountPanel festId={fest.id} />
+      </section>
 
       <div className="mt-8">
         <MetaList>

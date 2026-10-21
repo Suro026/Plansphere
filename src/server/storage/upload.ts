@@ -27,6 +27,7 @@ export type UploadKind =
   | "festSocial"
   | "eventPoster"
   | "eventRulebook"
+  | "eventTeamPhoto"
   | "certificateTemplate"
   | "profilePhoto"
   | "eventHeadIdentity";
@@ -56,6 +57,7 @@ export const UPLOAD_POLICY: Record<UploadKind, UploadPolicy> = {
   festThumbnail: { owner: "fest", bucket: BUCKETS.eventAssets, folder: "thumbnails", maxBytes: 3 * 1024 * 1024, maxDimension: 1200, permission: "upload:festArtwork" },
   festSocial: { owner: "fest", bucket: BUCKETS.eventAssets, folder: "social", maxBytes: 3 * 1024 * 1024, maxDimension: 1200, permission: "upload:festArtwork" },
   eventPoster: { owner: "fest", bucket: BUCKETS.eventAssets, folder: "posters", maxBytes: 5 * 1024 * 1024, maxDimension: 2400, permission: "upload:eventPoster" },
+  eventTeamPhoto: { owner: "fest", bucket: BUCKETS.eventAssets, folder: "team", maxBytes: 3 * 1024 * 1024, maxDimension: 1200, permission: "upload:eventPoster" },
   eventRulebook: { owner: "fest", bucket: BUCKETS.eventAssets, folder: "rulebooks", maxBytes: 10 * 1024 * 1024, maxDimension: 0, permission: "upload:eventPoster", document: true },
   /**
    * The artwork a certificate is printed on. Releasing certificates is a

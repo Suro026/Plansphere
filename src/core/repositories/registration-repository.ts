@@ -1,4 +1,5 @@
 import type { Page, PageRequest, Unsubscribe } from "../models/common";
+import type { PaymentCheckoutResult } from "../models/payment";
 import type {
   CreateRegistrationInput,
   Registration,
@@ -55,6 +56,13 @@ export interface RegistrationRepository {
    * `failed-precondition` if the event is closed or full.
    */
   create(input: CreateRegistrationInput): Promise<Registration>;
+
+  /**
+   * Starts (or resumes) the checkout for a seat that is waiting for payment.
+   * Idempotent, and verifies with the provider server-side — so it is also how
+   * a returning customer finds out whether the payment landed.
+   */
+  startPayment(id: string): Promise<PaymentCheckoutResult>;
 
   /** Cancels the caller's own entry and releases its seats in the same transaction. */
   cancel(id: string): Promise<void>;

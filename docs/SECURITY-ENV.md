@@ -43,6 +43,9 @@ throws if imported into a client component.
 | `APP_CHECK_ENFORCE` | no | `src/server/app-check.ts` | must not be `true` without a site key |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | **token yes** | `src/server/rate-limit.ts` | both or neither |
 | `RATE_LIMIT_OVERRIDES`, `RATE_LIMIT_DISABLED` | no | rate limiting | parsed / switch |
+| `PAYMENTS_ENABLED`, `PAYMENTS_LIVE_ENABLED`, `PAYMENTS_ALLOW_TEST_PROVIDER`, `PAYMENT_HOLD_MINUTES` | no | `src/server/payments/config.ts` | all off by default; warnings when half-configured. See `docs/payments-implementation.md` |
+| `PAYMENT_SECRET_KEY` | **yes** — decrypts merchant credentials | `src/server/payments/secrets.ts` | error in production if `PAYMENTS_ENABLED=1` and not base64 of 32 bytes |
+| `PAYMENT_SECRET_KEYS_PREVIOUS` | **yes** — decrypt-only older keys, comma-separated, used during a rotation | `src/server/payments/secrets.ts` | error in production if `PAYMENTS_ENABLED=1` and an entry is not base64 of 32 bytes |
 | `ENV_STRICT` | no | startup: refuse to boot on a required-variable error | switch |
 | `FIRESTORE_EMULATOR_HOST`, `FIREBASE_AUTH_EMULATOR_HOST`, `GCLOUD_PROJECT` | no | tests / emulator development | — |
 | `VERCEL_*` | no | provided by Vercel | — |

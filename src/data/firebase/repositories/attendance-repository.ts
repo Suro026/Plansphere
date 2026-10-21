@@ -15,6 +15,7 @@ import type { Unsubscribe } from "@/core/models/common";
 import {
   attendanceIdFor,
   attendanceSchema,
+  blockOutcome,
   foodCollectionIdFor,
   foodCollectionSchema,
   memberKeyFor,
@@ -26,6 +27,7 @@ import {
 } from "@/core/models/attendance";
 import { registrationSchema, type Registration } from "@/core/models/registration";
 import { eventSchema } from "@/core/models/event";
+import { admissionBlock } from "@/core/models/admission";
 import type { AttendanceRepository } from "@/core/repositories/attendance-repository";
 import { api } from "@/data/api-client";
 import { COLLECTIONS, firebaseAuth, firestore } from "../client";
@@ -57,7 +59,9 @@ const resolveTicket = async (
     };
   }
 
-  if (registration.status === "cancelled") return { ok: false, outcome: { result: "cancelled" } };
+  // One rule for every gate: confirmed (or draft team), and paid if it had to be.
+  const block = admissionBlock(registration);
+  if (block) return { ok: false, outcome: blockOutcome(block) };
 
   return { ok: true, registration };
 };

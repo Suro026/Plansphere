@@ -13,9 +13,10 @@ import { ApiError, authenticate, handler, ok, readBody } from "@/server/api";
 import { RATE_LIMITS } from "@/server/rate-limit";
 import { COLLECTIONS, FieldValue, Timestamp, adminDb } from "@/server/firebase-admin";
 import { compact, docToJson, randomBytes } from "@/server/serialize";
-import { emailService } from "@/server/email";
-import { registrationConfirmedEmail, teamInviteEmail } from "@/server/email/templates";
-import { notify, notifyMany } from "@/server/notify";
+import { eventRequiresPayment } from "@/core/models/payment";
+import { assertOrderingAllowed, type StoredAccount } from "@/server/payments/account";
+import { expirePendingHolds, writeHold } from "@/server/payments/lifecycle";
+import { announceRegistration } from "@/server/registrations/announce";
 
 /**
  * POST /api/registrations — register for an event.
@@ -57,6 +58,14 @@ export const POST = handler(async (request) => {
     if (!chunk.length) break;
     const found = await db.collection(COLLECTIONS.users).where("email", "in", chunk).get();
     for (const d of found.docs) userIdByEmail.set(String(d.data().email), d.id);
+  }
+
+  // A paid event that looks full may only be full of unpaid holds whose time is
+  // up. Release those first so capacity heals even before the scheduled sweep has
+  // run (best effort: a failure here must never block a registration).
+  const preview = (await eventRef.get()).data();
+  if (preview && eventRequiresPayment(preview) && Number(preview.capacity ?? 0) > 0 && Number(preview.registeredCount ?? 0) + input.members.length > Number(preview.capacity)) {
+    await expirePendingHolds({ eventId: input.eventId, limit: 25 }).catch(() => undefined);
   }
 
   const result = await db.runTransaction(async (tx) => {
@@ -141,7 +150,7 @@ export const POST = handler(async (request) => {
         .collection(COLLECTIONS.registrations)
         .where("eventId", "==", input.eventId)
         .where("userId", "==", caller.uid)
-        .where("status", "in", ["confirmed", "waitlisted"])
+        .where("status", "in", ["confirmed", "waitlisted", "pending_payment"])
         .limit(1),
     );
     if (!dup.empty) throw ApiError.conflict("You already hold an entry for this event.");
@@ -160,6 +169,17 @@ export const POST = handler(async (request) => {
         const taken = (active.data().memberEmails as string[]).find((e) => teammateEmails.includes(e));
         throw ApiError.conflict(`${taken} is already on another team for this event.`);
       }
+    }
+
+    // A paid event charges for a seat, never for a place in the queue: a
+    // waitlisted entry is free until promotion. Whether this fest may take
+    // payment at all is decided here, before anything is written — never by
+    // quietly falling back to a free registration.
+    const charge = !waitlist && eventRequiresPayment(event);
+    let account: StoredAccount | null = null;
+    if (charge) {
+      const accountSnap = await tx.get(db.collection(COLLECTIONS.paymentAccounts).doc(String(event.festId)));
+      account = assertOrderingAllowed(accountSnap.exists ? (accountSnap.data() as StoredAccount) : null);
     }
 
     const ticketCode = generateTicketCode(randomBytes);
@@ -189,7 +209,11 @@ export const POST = handler(async (request) => {
     // said yes. Everyone the leader lists starts as invited, so a team event
     // with a minimum above one always begins here.
     const complete = event.eventType !== "team" || teamIsComplete(members, teamSize);
-    const status = waitlist ? "waitlisted" : complete ? "confirmed" : "draft";
+    // A paid entry is `pending_payment` whatever the team looks like: it holds
+    // its seats while the payment is made, and only the verified payment turns
+    // it into a confirmed entry (or a draft, if the team is still short).
+    const status = waitlist ? "waitlisted" : charge ? "pending_payment" : complete ? "confirmed" : "draft";
+    const hold = charge && account ? writeHold(tx, db, { registrationId: regRef.id, eventId: input.eventId, festId: String(event.festId), userId: caller.uid, event, account }) : null;
 
     // A short code the leader can read out. Teams only — a solo entry has
     // nobody to join it.
@@ -212,6 +236,7 @@ export const POST = handler(async (request) => {
         ticketCode,
         ...(joinCode ? { joinCode } : {}),
         status,
+        ...(hold ? { paymentStatus: hold.paymentStatus, amountPaise: hold.amountPaise, holdExpiresAt: hold.holdExpiresAt } : {}),
         eventTitle: event.title,
         userName: leaderName,
         userEmail: caller.email,
@@ -221,9 +246,9 @@ export const POST = handler(async (request) => {
       }),
     );
 
-    // A draft holds its seats exactly as a confirmed entry does, so the
-    // counters move for both. Only the waitlist takes nothing yet.
-    if (status === "confirmed" || status === "draft") {
+    // A draft and an unpaid hold hold their seats exactly as a confirmed entry
+    // does, so the counters move for all three. Only the waitlist takes nothing yet.
+    if (status !== "waitlisted") {
       tx.update(eventRef, { registeredCount: FieldValue.increment(seats), updatedAt: FieldValue.serverTimestamp() });
       tx.update(db.collection(COLLECTIONS.fests).doc(String(event.festId)), {
         "stats.registrations": FieldValue.increment(seats),
@@ -247,80 +272,9 @@ export const POST = handler(async (request) => {
   }
 
   // Side effects after the transaction — none of these should be able to
-  // roll back a seat that was correctly granted.
-  const festSnap = await db.collection(COLLECTIONS.fests).doc(String(result.event.festId)).get();
-  const festName = String(festSnap.data()?.name ?? "");
-
-  const meta = { userId: caller.uid, festId: String(result.event.festId), eventId: input.eventId, subjectType: "registration", subjectId: saved.id };
-
-  await notify({
-    userId: caller.uid,
-    type: "registration_confirmed",
-    title:
-      result.status === "waitlisted"
-        ? "You're on the waitlist"
-        : result.status === "draft"
-          ? "Your team is not complete yet"
-          : "You're in",
-    body: `${result.event.title} · ${festName}`,
-    link: `/registered/${saved.id}`,
-    festId: String(result.event.festId),
-    eventId: input.eventId,
-  });
-
-  if (result.status === "confirmed") {
-    await emailService().send(
-      registrationConfirmedEmail({
-        to: caller.email,
-        recipientName: leaderName,
-        eventTitle: String(result.event.title),
-        festName,
-        date: String(result.event.date),
-        startTime: String(result.event.startTime),
-        venue: String(result.event.venue),
-        ticketCode: String(registration.ticketCode),
-        registrationId: saved.id,
-        ...(input.teamName ? { teamName: input.teamName } : {}),
-        meta,
-      }),
-    );
-  }
-
-  // Invitations to teammates: an in-app notification where an account
-  // exists, and an email either way.
-  const teammates = (registration.members as Array<{ name: string; email: string; userId?: string; isLeader?: boolean }>).filter(
-    (m) => !m.isLeader,
-  );
-  if (teammates.length && input.teamName) {
-    const teamName = input.teamName;
-    await notifyMany(
-      teammates
-        .filter((m) => m.userId)
-        .map((m) => ({
-          userId: m.userId!,
-          type: "team_invite" as const,
-          title: `${leaderName} added you to ${teamName}`,
-          body: `${result.event.title} · ${festName}`,
-          link: "/teams",
-          festId: String(result.event.festId),
-          eventId: input.eventId,
-        })),
-    );
-    await emailService().sendMany(
-      teammates.map((m) =>
-        teamInviteEmail({
-          to: m.email,
-          recipientName: m.name,
-          leaderName,
-          teamName,
-          eventTitle: String(result.event.title),
-          festName,
-          date: String(result.event.date),
-          meta: { ...meta, userId: m.userId ?? undefined },
-        }),
-      ),
-    );
-  }
+  // roll back a seat that was correctly granted. (A paid entry is only asked to
+  // pay here; its confirmation and teammate invitations follow the verified payment.)
+  await announceRegistration(saved.id);
 
   return ok({ registration }, 201);
 }, { rateLimit: RATE_LIMITS.authenticated.registration });

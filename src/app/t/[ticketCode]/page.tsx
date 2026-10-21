@@ -1,3 +1,4 @@
+import { ADMISSION_MESSAGES, type AdmissionBlock } from "@/core/models/admission";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Check, Warning } from "@phosphor-icons/react/dist/ssr";
@@ -27,7 +28,7 @@ export default async function TicketPage({ params }: Params) {
   const fallback = { ticket: null, reason: "not-found" as const };
   const lookup = isAdminConfigured() ? await lookupTicket(ticketCode).catch(() => fallback) : fallback;
   const ticket = lookup.ticket;
-  const valid = ticket && ticket.status !== "cancelled";
+  const valid = ticket && ticket.block === null;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -47,10 +48,10 @@ const Valid = ({ ticket }: { ticket: PublicTicket }) => (
     <div className="mb-3.5 flex flex-wrap items-center gap-[9px]">
       <Tag tone="accent" className="gap-[5px]">
         <Check size={12} weight="bold" aria-hidden />
-        {ticket.status === "waitlisted" ? "Waitlisted" : "Valid ticket"}
+        Valid ticket
       </Tag>
       <span className="text-[12.5px] text-neutral-500">
-        {ticket.status === "waitlisted" ? "Not yet confirmed — no seat is held" : "Verified against the college’s record"}
+        Verified against the college’s record
       </span>
     </div>
     <div className="mb-1.5 text-[26px] font-medium leading-[1.1] tracking-[-0.025em] sm:text-[30px]">{ticket.holderName}</div>
@@ -84,6 +85,14 @@ const Valid = ({ ticket }: { ticket: PublicTicket }) => (
   </div>
 );
 
+const INVALID_HEADING: Record<AdmissionBlock, string> = {
+  cancelled: "Registration cancelled",
+  waitlisted: "On the waitlist",
+  draft: "Team not complete",
+  unpaid: "Payment pending",
+  refunded: "Registration cancelled",
+};
+
 const Invalid = ({ code, ticket }: { code: string; ticket: PublicTicket | null }) => (
   <div className="pl-5 shadow-[inset_3px_0_0_var(--color-neutral-600)]">
     <div className="mb-3.5 flex items-center gap-[9px]">
@@ -92,10 +101,12 @@ const Invalid = ({ code, ticket }: { code: string; ticket: PublicTicket | null }
         Not a valid ticket
       </Tag>
     </div>
-    <div className="mb-1.5 text-[26px] font-medium leading-[1.1] tracking-[-0.025em] sm:text-[30px]">{ticket ? "Registration cancelled" : "No record found"}</div>
+    <div className="mb-1.5 text-[26px] font-medium leading-[1.1] tracking-[-0.025em] sm:text-[30px]">{ticket ? INVALID_HEADING[ticket.block ?? "cancelled"] : "No record found"}</div>
     <p className="mb-5 max-w-[52ch] text-[14px] text-neutral-300">
       {ticket
-        ? `This ticket for ${ticket.eventTitle} was cancelled and no longer admits anyone. The participant can register again if seats remain.`
+        ? ticket.block === "cancelled" || ticket.block === null
+          ? `This ticket for ${ticket.eventTitle} was cancelled and no longer admits anyone. The participant can register again if seats remain.`
+          : `${ADMISSION_MESSAGES[ticket.block]} (${ticket.eventTitle})`
         : "This code doesn’t match any registration. It may have been cancelled, it may belong to a different fest, or the QR may have been altered."}
     </p>
     <MetaList>

@@ -89,6 +89,19 @@ service cloud.firestore {
         && isTeamMember(get(/databases/$(database)/documents/registrations/$(registrationId)).data.memberEmails);
     }
 
+    // The admission rule, mirrored from src/core/models/admission.ts (`admissionBlock`),
+    // which every other gate uses. An entry is admitted only if it exists, is confirmed
+    // and, when it was charged, the payment is verified. Draft teams (not yet at their
+    // minimum size), waitlisted, pending_payment, cancelled and any unrecognised status
+    // are refused — a draft becomes admissible the moment it is confirmed.
+    // A missing `status` is a confirmed entry that predates the field; a missing
+    // `paymentStatus` is a free one. tests/emulator/admission.test.ts pins this table.
+    function admissible(registrationId) {
+      return exists(/databases/$(database)/documents/registrations/$(registrationId))
+        && get(/databases/$(database)/documents/registrations/$(registrationId)).data.get('status', 'confirmed') == 'confirmed'
+        && get(/databases/$(database)/documents/registrations/$(registrationId)).data.get('paymentStatus', 'not_required') in ['not_required', 'paid'];
+    }
+
     // Fields changed by this write.
     function changed() {
       return request.resource.data.diff(resource.data).affectedKeys();
@@ -224,7 +237,9 @@ service cloud.firestore {
       allow update: if isOwner(resource.data.userId)
                     && onlyChanged(['status', 'cancelledAt', 'updatedAt'])
                     && request.resource.data.status == 'cancelled'
-                    && resource.data.status == 'confirmed';
+                    && resource.data.status == 'confirmed'
+                    // A paid entry is cancelled through the API, which also records the refund owed.
+                    && resource.data.get('paymentStatus', 'not_required') == 'not_required';
 
       allow delete: if serverOnly();
     }
@@ -249,7 +264,8 @@ service cloud.firestore {
       // record per entry however many times its QR is scanned.
       allow create: if isScanner(request.resource.data.festId)
                     && request.resource.data.scannedBy == uid()
-                    && request.resource.data.registrationId == registrationId;
+                    && request.resource.data.registrationId == registrationId
+                    && admissible(registrationId);
 
       // A team shares one QR and arrives in waves, so the second scan has to
       // add the people who have now turned up. That is the only thing it may
@@ -282,7 +298,8 @@ service cloud.firestore {
       // exists. Updates are denied, which turns that into a refusal rather
       // than a second helping.
       allow create: if isScanner(request.resource.data.festId)
-                    && request.resource.data.collectedBy == uid();
+                    && request.resource.data.collectedBy == uid()
+                    && admissible(request.resource.data.registrationId);
 
       allow update: if false;
       allow delete: if adminOk() && managesFest(resource.data.festId);
@@ -426,6 +443,30 @@ service cloud.firestore {
       // shape as the match it belongs to.
       allow get, list: if true;
       allow create, update, delete: if serverOnly();
+    }
+
+    // ---------------------------------------------------------------- payments
+    //
+    // Everything about money is written and read by the server only (Admin SDK,
+    // which bypasses these rules). They are named here, rather than left to the
+    // catch-all, so the intent survives someone later loosening the catch-all —
+    // and so the rules tests can assert it. In particular `paymentSecrets` holds
+    // encrypted merchant credentials and must never be readable by any client.
+
+    match /paymentAccounts/{festId} {
+      allow read, write: if false;
+    }
+
+    match /paymentSecrets/{festId} {
+      allow read, write: if false;
+    }
+
+    match /payments/{registrationId} {
+      allow read, write: if false;
+    }
+
+    match /paymentEvents/{eventId} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

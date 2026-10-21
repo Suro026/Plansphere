@@ -66,7 +66,7 @@ export const RegisterPanel = ({ event: initial, fest }: { event: Event; fest: Fe
   const fillRatio = event.capacity > 0 ? event.registeredCount / event.capacity : 0;
   const isTeam = event.eventType === "team";
   const ctaLabel = isTeam ? "Register your team" : "Register";
-  const entry = event.entryFee > 0 ? `₹${event.entryFee.toLocaleString("en-IN")}` : "Free entry";
+  const entry = event.entryFee > 0 ? `₹${event.entryFee.toLocaleString("en-IN")}${event.paymentEnabled ? " · pay online" : ""}` : "Free entry";
 
   const signInHref = `/sign-in?next=${encodeURIComponent(pathname)}`;
   const verifyHref = `/verify-email?next=${encodeURIComponent(pathname)}`;

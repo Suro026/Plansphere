@@ -150,7 +150,7 @@ export const RegistrationForm = ({ event, fest, onDone }: RegistrationFormProps)
 
     try {
       const registration = await repos.registrations.create(input);
-      toast.success("You're in");
+      toast.success(registration.status === "pending_payment" ? "Seat held — complete your payment" : "You're in");
       onDone?.();
       router.push(`/registered/${registration.id}`);
     } catch (error) {
@@ -258,7 +258,7 @@ export const RegistrationForm = ({ event, fest, onDone }: RegistrationFormProps)
       {isTeam ? (
         <div className="mt-3 text-[12px] text-accent-300">
           {needMore > 0
-            ? `This event needs ${event.teamSize.min} members. Register now and your entry is held as a draft — add ${needMore} more by email, or share the join code you get next.`
+            ? `This event needs ${event.teamSize.min} members. Register now and your seats are held as a draft — add ${needMore} more by email, or share the join code you get next. The ticket becomes valid for entry once the team is complete.`
             : count < event.teamSize.max
               ? `You can add ${event.teamSize.max - count} more later.`
               : `That's the full team of ${event.teamSize.max}.`}
@@ -276,10 +276,10 @@ export const RegistrationForm = ({ event, fest, onDone }: RegistrationFormProps)
           {fest.name} · signed in
         </MetaRow>
         <MetaRow label="Entry" className="bg-none py-0 pb-2.5">
-          {event.entryFee > 0 ? `₹${event.entryFee.toLocaleString("en-IN")}` : "Free"} · {formatTeamSize(event.eventType, event.teamSize)}
+          {event.entryFee > 0 ? `₹${event.entryFee.toLocaleString("en-IN")}${event.paymentEnabled ? " · paid once per registration" : ""}` : "Free"} · {formatTeamSize(event.eventType, event.teamSize)}
         </MetaRow>
         <Button type="submit" variant="primary" size="lg" block loading={form.formState.isSubmitting}>
-          {needMore > 0 ? "Register and hold our seats" : "Confirm registration"}
+          {event.paymentEnabled && event.entryFee > 0 ? "Hold my seat and pay" : needMore > 0 ? "Register and hold our seats" : "Confirm registration"}
         </Button>
       </div>
     </form>

@@ -65,6 +65,8 @@ const DEFAULT_POLICY = {
     verify: { bucket: "public.verify", limit: 60, windowSeconds: 60 },
     health: { bucket: "public.health", limit: 30, windowSeconds: 60 },
     cron: { bucket: "public.cron", limit: 10, windowSeconds: 60 },
+    /** Payment-provider webhooks. Signature-checked, so this only bounds abuse of the endpoint. */
+    webhook: { bucket: "public.webhook", limit: 300, windowSeconds: 60 },
     /** Anything public without its own rule. */
     default: { bucket: "public.default", limit: 60, windowSeconds: 60 },
   },
@@ -83,6 +85,8 @@ const DEFAULT_POLICY = {
     uploads: { bucket: "authenticated.uploads", limit: 20, windowSeconds: 10 * 60 },
     /** Registration exports: reads the whole fest's roster, builds a file. */
     exports: { bucket: "authenticated.exports", limit: 20, windowSeconds: 10 * 60 },
+    /** Starting or resuming a checkout: calls the payment provider. */
+    checkout: { bucket: "authenticated.checkout", limit: 10, windowSeconds: 60 },
     /** Everything else a signed-in student or admin does. */
     default: { bucket: "authenticated.default", limit: 240, windowSeconds: 60 },
   },

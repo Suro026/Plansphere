@@ -59,6 +59,10 @@ export const AUDIT_ACTIONS = [
   "match_score_undone",
   "match_finished",
   "match_cancelled",
+  "payment_account_updated",
+  "payment_account_approved",
+  "payment_account_suspended",
+  "payment_refund_issued",
 ] as const;
 
 export const auditActionSchema = z.enum(AUDIT_ACTIONS);
@@ -137,4 +141,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   match_score_undone: "Match score correction undone",
   match_finished: "Match finished",
   match_cancelled: "Match cancelled",
+  payment_account_updated: "Payment account updated",
+  payment_account_approved: "Payment account approved",
+  payment_account_suspended: "Payment account suspended",
+  payment_refund_issued: "Refund issued",
 };

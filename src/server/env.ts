@@ -46,6 +46,15 @@ const optionalSchema = z.object({
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
+  // Online payment for registration. Every one is off/absent by default; see
+  // docs/payments-implementation.md before setting any of them.
+  PAYMENTS_ENABLED: z.enum(["0", "1"]).optional(),
+  PAYMENTS_LIVE_ENABLED: z.enum(["0", "1"]).optional(),
+  PAYMENTS_ALLOW_TEST_PROVIDER: z.enum(["0", "1"]).optional(),
+  PAYMENT_HOLD_MINUTES: z.coerce.number().int().min(5).max(60).optional(),
+  PAYMENT_SECRET_KEY: z.string().optional(),
+  // Older encryption keys, comma-separated, kept only so existing credentials still open during a rotation.
+  PAYMENT_SECRET_KEYS_PREVIOUS: z.string().optional(),
 });
 
 export interface EnvIssue {
@@ -64,6 +73,7 @@ export interface EnvReport {
     sentry: boolean;
     appCheck: "enforced" | "monitor" | "off";
     rateLimitStore: "upstash" | "memory";
+    payments: "off" | "sandbox" | "live";
   };
 }
 
@@ -104,6 +114,28 @@ export const validateEnv = (env: NodeJS.ProcessEnv = process.env): EnvReport => 
     issues.push({ key: "UPSTASH_REDIS_REST_URL", level: "warning", message: "set both URL and token, or neither — falling back to per-instance rate limiting" });
   }
 
+  // Payments: nothing here can switch money on; it only reports a half-configured state.
+  const paymentsOn = opt.PAYMENTS_ENABLED === "1";
+  if (paymentsOn) {
+    const keyBytes = opt.PAYMENT_SECRET_KEY ? Buffer.from(opt.PAYMENT_SECRET_KEY, "base64").length : 0;
+    if (keyBytes !== 32) {
+      issues.push({ key: "PAYMENT_SECRET_KEY", level: production ? "error" : "warning", message: "PAYMENTS_ENABLED=1 but the key is missing or is not base64 of 32 bytes — merchant credentials cannot be stored or read" });
+    }
+    const previous = (opt.PAYMENT_SECRET_KEYS_PREVIOUS ?? "").split(/[,\s]+/).filter(Boolean);
+    if (previous.some((k) => Buffer.from(k, "base64").length !== 32)) {
+      issues.push({ key: "PAYMENT_SECRET_KEYS_PREVIOUS", level: production ? "error" : "warning", message: "an entry is not base64 of 32 bytes — stored credentials could not be opened" });
+    }
+    if (!opt.CRON_SECRET) {
+      issues.push({ key: "CRON_SECRET", level: "warning", message: "PAYMENTS_ENABLED=1 without it — unpaid seat holds are never released and lost webhooks are never reconciled" });
+    }
+  }
+  if (opt.PAYMENTS_LIVE_ENABLED === "1" && !paymentsOn) {
+    issues.push({ key: "PAYMENTS_LIVE_ENABLED", level: "warning", message: "set without PAYMENTS_ENABLED=1 — it has no effect" });
+  }
+  if (production && opt.PAYMENTS_ALLOW_TEST_PROVIDER === "1") {
+    issues.push({ key: "PAYMENTS_ALLOW_TEST_PROVIDER", level: "warning", message: "set in production — the test provider is never registered there, remove it" });
+  }
+
   const emailLive = opt.EMAIL_PROVIDER === "resend" && Boolean(opt.RESEND_API_KEY);
   return {
     ok: !issues.some((i) => i.level === "error"),
@@ -115,6 +147,7 @@ export const validateEnv = (env: NodeJS.ProcessEnv = process.env): EnvReport => 
       sentry: Boolean(opt.NEXT_PUBLIC_SENTRY_DSN),
       appCheck: opt.APP_CHECK_ENFORCE === "true" ? "enforced" : opt.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY ? "monitor" : "off",
       rateLimitStore: opt.UPSTASH_REDIS_REST_URL && opt.UPSTASH_REDIS_REST_TOKEN ? "upstash" : "memory",
+      payments: !paymentsOn ? "off" : opt.PAYMENTS_LIVE_ENABLED === "1" ? "live" : "sandbox",
     },
   };
 };
