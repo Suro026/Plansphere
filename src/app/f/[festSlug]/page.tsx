@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { repositories } from "@/data/repositories";
@@ -12,9 +13,15 @@ export const revalidate = 60;
 
 type Params = { festSlug: string };
 
+/**
+ * `generateMetadata` and the page both need the fest; `cache` makes that one
+ * Firestore read per request instead of two (React dedupes it within a render).
+ */
+const getFest = cache((slug: string) => repositories().fests.getBySlug(slug).catch(() => null));
+
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { festSlug } = await params;
-  const fest = await repositories().fests.getBySlug(festSlug).catch(() => null);
+  const fest = await getFest(festSlug);
   if (!fest) return { title: "Fest not found" };
   const description = fest.tagline ?? `${fest.organizationName} · ${formatDateRange(fest.startDate, fest.endDate)}`;
   return {
@@ -35,7 +42,7 @@ export default async function FestPage({ params }: { params: Promise<Params> }) 
   const { festSlug } = await params;
   const repos = repositories();
 
-  const fest = await repos.fests.getBySlug(festSlug).catch(() => null);
+  const fest = await getFest(festSlug);
   if (!fest || fest.status !== "published") notFound();
 
   const eventsPage = await repos.events.list({

@@ -9,7 +9,8 @@ import dynamic from "next/dynamic";
  * path, and the static orbit artwork stays as the fallback until the first
  * real frame is drawn (and for good if anything goes wrong). It is skipped
  * entirely for visitors who ask for reduced motion or reduced data, on
- * low-memory devices, and where WebGL isn't available.
+ * touch/phone-sized screens, on low-memory devices, and where WebGL is missing
+ * or software-rendered.
  */
 
 const PlansphereMachine3D = dynamic(() => import("@/components/ui/plansphere-machine-3d"), { ssr: false });
@@ -28,10 +29,22 @@ class MachineBoundary extends React.Component<{ children: React.ReactNode; onFai
   }
 }
 
+/**
+ * WebGL must exist *and* be hardware-accelerated. Where Chrome falls back to a software
+ * rasteriser (SwiftShader, llvmpipe, "Basic Render Driver" — old GPUs, blocklisted drivers,
+ * remote desktops, headless test runners) the scene would render on the main thread at a
+ * few frames a second, so the static artwork is the better experience there.
+ */
+const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/i;
 const webglAvailable = () => {
   try {
     const canvas = document.createElement("canvas");
-    return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+    if (!gl) return false;
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const renderer = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return !SOFTWARE_RENDERER.test(renderer);
   } catch {
     return false;
   }
@@ -48,6 +61,11 @@ export function MachineHeroLoader() {
     const skip =
       window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
       window.matchMedia("(prefers-reduced-data: reduce)").matches ||
+      // Phones: the scene is non-interactive there (rotation and zoom are off so the page can
+      // scroll) and its start-up blocks the main thread for ~3 s at 4x CPU slowdown, for a
+      // decoration. Touch devices keep the lightweight static artwork.
+      window.matchMedia("(pointer: coarse)").matches ||
+      window.innerWidth <= 720 ||
       device.connection?.saveData === true ||
       (device.deviceMemory !== undefined && device.deviceMemory <= 2) ||
       !webglAvailable();

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import * as Sentry from "@sentry/nextjs";
 
 /**
  * Last-resort boundary: rendered when the root layout itself fails, so it
@@ -10,7 +9,7 @@ import * as Sentry from "@sentry/nextjs";
  */
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   React.useEffect(() => {
-    Sentry.captureException(error);
+    void import("@sentry/nextjs").then((Sentry) => Sentry.captureException(error));
   }, [error]);
 
   return (

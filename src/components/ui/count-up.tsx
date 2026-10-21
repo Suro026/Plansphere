@@ -42,9 +42,40 @@ export const CountUpController = () => {
     const formatter = new Intl.NumberFormat("en-IN");
     const animated = new WeakMap<Element, number>();
 
+    /**
+     * React tags every DOM node it has claimed during hydration with a
+     * `__reactFiber$…` property. Rewriting the text of a server-rendered number
+     * before that happens makes hydration fail (React error #418) and throws the
+     * whole boundary away to be client-rendered — measured on the throttled
+     * mobile fest page, where this controller (mounted at the root, so it runs
+     * before the page's own boundary finishes hydrating) did it on most loads.
+     * So an element is left untouched, showing its correct final number, until
+     * React owns it; if it is never claimed it simply stays as rendered.
+     */
+    const claimed = (el: HTMLElement) => Object.keys(el).some((key) => key.startsWith("__reactFiber$"));
+    const waiting = new Set<HTMLElement>();
+    const MAX_WAIT_MS = 15000;
+
     const animate = (el: HTMLElement) => {
       const target = Number(el.dataset.countup);
       if (!Number.isFinite(target)) return;
+      if (!claimed(el)) {
+        if (waiting.has(el)) return;
+        waiting.add(el);
+        const since = performance.now();
+        const poll = () => {
+          if (!el.isConnected || performance.now() - since > MAX_WAIT_MS) {
+            waiting.delete(el);
+          } else if (claimed(el)) {
+            waiting.delete(el);
+            animate(el);
+          } else {
+            requestAnimationFrame(poll);
+          }
+        };
+        requestAnimationFrame(poll);
+        return;
+      }
       const from = animated.get(el) ?? 0;
       if (from === target) return;
 
