@@ -11,7 +11,16 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfi
 import { firebaseAuth } from "@/data/firebase/client";
 
 export const BATCH = "video-demo-2026";
-export const PASSWORD = "PlanDemo@2026";
+/**
+ * The password every demo account gets. Demo accounts exist only in the local
+ * Firebase emulator (`assertEmulatorTarget` refuses anything else), so this is
+ * not a secret — but it is still not hardcoded as a literal: set
+ * `DEMO_ACCOUNT_PASSWORD` to choose your own, otherwise it is derived from the
+ * batch name, which is stable across the separate seed / clean / recording
+ * processes and obviously a placeholder. `npm run demo:seed` resets every demo
+ * account to it and prints it into the git-ignored `.demo-accounts.md`.
+ */
+export const PASSWORD = process.env.DEMO_ACCOUNT_PASSWORD?.trim() || `${BATCH}-emulator-only`;
 export const DEMO_DOMAIN = "plansphere.demo";
 
 const AUTH_HOST = () => process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "";

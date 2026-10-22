@@ -1,6 +1,6 @@
 # Plansphere 9:16 product video — recording runbook
 
-Everything in the video is the **real app** running against a **local Firebase emulator** (`demo-plansphere`). Nothing here touches production. Accounts, tickets and certificate numbers for the current seed are in `.demo-accounts.md` (repo root, git-ignored). Every demo password is `PlanDemo@2026`.
+Everything in the video is the **real app** running against a **local Firebase emulator** (`demo-plansphere`). Nothing here touches production. Accounts, tickets and certificate numbers for the current seed are in `.demo-accounts.md` (repo root, git-ignored). Every demo password is printed at the top of `.demo-accounts.md` after seeding (it is `video-demo-2026-emulator-only` unless you set `DEMO_ACCOUNT_PASSWORD`; emulator-only, never a real credential).
 
 ## 1. Start (three terminals)
 
