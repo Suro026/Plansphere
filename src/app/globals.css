@@ -1,0 +1,712 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Plansphere — the "Editorial" design system, as Tailwind v4 theme tokens plus
+ * the component classes the app is built from.
+ *
+ * Visual source of truth: the Plansphere reference landing page
+ * (github.com/Xioonnox/plansphere), extracted value-for-value from its
+ * client/src/index.css and client/src/pages/Home.tsx — bone/ink/mint,
+ * DM Sans + Space Grotesk, tight negative tracking, sharp hairline cards,
+ * hard offset shadows used sparingly. Plansphere itself remains the source
+ * of truth for every route, permission and data flow this file has no
+ * opinion about.
+ *
+ * Editorial in one paragraph: a warm off-white ground, near-black ink text,
+ * Space Grotesk for every heading at tight tracking and compressed
+ * line-height, DM Sans for body copy, and one mint accent used almost
+ * entirely as a fill (buttons, badges, hover backgrounds) rather than as
+ * text — raw mint fails contrast against this background, so anywhere the
+ * accent has to be *read* (links, focus rings, active-state text) it runs
+ * through --color-accent, a text-safe sage-green drawn from the same hue.
+ * Cards are sharp-cornered hairline boxes, not soft SaaS panels.
+ */
+
+/* ───────────────────────────── tokens ───────────────────────────── */
+
+:root {
+  --color-bg: #f3f1ea;
+  --color-surface: #ffffff;
+  --color-text: #101010;
+
+  /* The reference's own muted label, kept as a literal reference value.
+     It fails AA at small text sizes (3.28:1 on bone) — use it only for
+     decorative/non-text purposes. Anywhere text needs to read as "muted",
+     reach for the neutral ramp below instead (it's tuned to pass AA). */
+  --color-muted-reference: #86857e;
+
+  /*
+   * Mint (#cbf6df) is the brand accent, but at bone's lightness it is
+   * ~1:1 contrast as text or a thin border — invisible. So the accent
+   * exists as two tokens:
+   *   --color-accent       a text-safe sage-green, for anything read
+   *                        (links, focus rings, active tab/step state,
+   *                        button text, icons) — this is what nearly
+   *                        every existing `text-accent`/`border-accent`/
+   *                        `hover:text-accent` call site actually means.
+   *   --color-accent-fill  the raw reference mint, for solid fills only
+   *                        (the one filled button, the LIVE badge, the
+   *                        scanner viewfinder over live video, decorative
+   *                        hero texture) — never used as text.
+   */
+  --color-accent: #50675b;
+  --color-accent-fill: #cbf6df;
+
+  --color-divider: color-mix(in srgb, #101010 16%, transparent);
+
+  /* Tonal ramp of the accent hue: 100 = darkest/most text-safe end,
+     900 = lightest, arriving at raw mint itself. */
+  --color-accent-100: #24352d;
+  --color-accent-200: #3a4e44;
+  --color-accent-300: #50675b;
+  --color-accent-400: #668072;
+  --color-accent-500: #7b9a8a;
+  --color-accent-600: #91b3a1;
+  --color-accent-700: #a7ccb8;
+  --color-accent-800: #b9e1cc;
+  --color-accent-900: #cbf6df;
+
+  /* Neutral ramp, anchored to ink/bone: 100 = closest to text (darkest),
+     900 = closest to the page background (lightest). 300–600 are all used
+     as real text somewhere in the app and are tuned to clear 4.5:1 on
+     bone; 700–900 are for borders, tracks and subtle background tints. */
+  --color-neutral-100: #1b1b1b;
+  --color-neutral-200: #323231;
+  --color-neutral-300: #494847;
+  --color-neutral-400: #595856;
+  --color-neutral-500: #666663;
+  --color-neutral-600: #6f6f6c;
+  --color-neutral-700: #8d8c88;
+  --color-neutral-800: #b3b2ad;
+  --color-neutral-900: #d8d6d0;
+
+  /* Semantic states — each picked to clear 4.5:1 on --color-bg, and kept
+     visually distinct from the accent and from each other. Mint is the
+     visual accent; it is not repurposed as "success". */
+  --color-danger: #9c3630;
+  --color-danger-800: color-mix(in srgb, var(--color-danger) 18%, white);
+  --color-success: #2f6b40;
+  --color-success-800: color-mix(in srgb, var(--color-success) 18%, white);
+  --color-warning: #7a5511;
+  --color-warning-800: color-mix(in srgb, var(--color-warning) 18%, white);
+  --color-info: #365170;
+  --color-info-800: color-mix(in srgb, var(--color-info) 18%, white);
+  --color-disabled: var(--color-neutral-700);
+
+  --space-1: 2.8px;
+  --space-2: 5.6px;
+  --space-3: 8.4px;
+  --space-4: 11.2px;
+  --space-6: 16.8px;
+  --space-8: 22.4px;
+
+  /* Marketing-surface rhythm, kept separate from the --space-* scale used
+     by product UI. Not yet applied anywhere — this is the token the
+     landing-page rebuild (next phase) is expected to consume, per the
+     "marketing vs. product spacing" requirement. */
+  --gutter-marketing-desktop: 64px;
+  --gutter-marketing-mobile: 18px;
+  --section-marketing-desktop: 112px;
+  --section-marketing-mobile: 64px;
+
+  /* Sharp, mostly-square per the reference — a deliberate departure from
+     the old rounded system. */
+  --radius-sm: 0px;
+  --radius-md: 3px;
+  --radius-lg: 6px;
+
+  /* Restrained by default (hairline, like the reference's product-grade
+     surfaces); the offset pair is the reference's hard poster-shadow,
+     opt-in only for hero/feature/marketing use — never applied to every
+     card. */
+  --shadow-sm: 0 0 0 1px var(--color-divider);
+  --shadow-md: 0 0 0 1px var(--color-divider), 0 2px 8px color-mix(in srgb, var(--color-text) 6%, transparent);
+  --shadow-lg: 0 0 0 1px var(--color-divider), 0 16px 40px color-mix(in srgb, var(--color-text) 12%, transparent);
+  --shadow-offset-sm: 4px 4px 0 0 var(--color-text);
+  --shadow-offset-lg: 8px 8px 0 0 var(--color-accent-fill);
+
+  --font-heading-weight: 500;
+
+  /* The fading hairline, reused everywhere a rule is drawn. */
+  --rule-fade: linear-gradient(
+    to right,
+    transparent,
+    var(--color-divider) 20px,
+    var(--color-divider) calc(100% - 20px),
+    transparent
+  );
+  --rule-fade-wide: linear-gradient(
+    to right,
+    transparent,
+    var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px),
+    transparent
+  );
+
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-text: var(--color-text);
+  --color-accent: var(--color-accent);
+  --color-accent-fill: var(--color-accent-fill);
+  --color-divider: var(--color-divider);
+  --color-danger: var(--color-danger);
+  --color-danger-800: var(--color-danger-800);
+  --color-success: var(--color-success);
+  --color-success-800: var(--color-success-800);
+  --color-warning: var(--color-warning);
+  --color-warning-800: var(--color-warning-800);
+  --color-info: var(--color-info);
+  --color-info-800: var(--color-info-800);
+  --color-disabled: var(--color-disabled);
+
+  --color-neutral-100: var(--color-neutral-100);
+  --color-neutral-200: var(--color-neutral-200);
+  --color-neutral-300: var(--color-neutral-300);
+  --color-neutral-400: var(--color-neutral-400);
+  --color-neutral-500: var(--color-neutral-500);
+  --color-neutral-600: var(--color-neutral-600);
+  --color-neutral-700: var(--color-neutral-700);
+  --color-neutral-800: var(--color-neutral-800);
+  --color-neutral-900: var(--color-neutral-900);
+
+  --color-accent-100: var(--color-accent-100);
+  --color-accent-200: var(--color-accent-200);
+  --color-accent-300: var(--color-accent-300);
+  --color-accent-400: var(--color-accent-400);
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-600: var(--color-accent-600);
+  --color-accent-700: var(--color-accent-700);
+  --color-accent-800: var(--color-accent-800);
+  --color-accent-900: var(--color-accent-900);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-phone: 34px;
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-offset-sm: var(--shadow-offset-sm);
+  --shadow-offset-lg: var(--shadow-offset-lg);
+
+  --font-sans: var(--font-dm-sans), "DM Sans", ui-sans-serif, sans-serif;
+  --font-display: var(--font-space-grotesk), "Space Grotesk", ui-sans-serif, sans-serif;
+  --font-serif-emphasis: Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, Menlo, Consolas, monospace;
+
+  /* Mobile-first breakpoints; the design's phone frame is 390px, its web
+     frame 1180px. `sm` is where the tap bar hands over to the top nav. */
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+
+  --animate-fade-in: fade-in 180ms ease-out;
+  --animate-rise: rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-pop: pop 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-wave: wave 26s linear infinite;
+
+  /* The landing footer's slow drifting wave. The artwork is two identical
+     tiles side by side, so sliding by half its width loops seamlessly. */
+  @keyframes wave {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  /* A small scale+fade pop for a result icon/badge — the scanner's
+     success/error moment and similar "something just happened" states. */
+  @keyframes pop {
+    from { opacity: 0; transform: scale(0.75); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+/* ───────────────────────────── base ───────────────────────────── */
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    scrollbar-gutter: stable;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+  }
+
+  /*
+   * The practical heading scale — every bare <h1>..<h6> in the product
+   * (dashboards, forms, static pages) that doesn't set its own size.
+   * Space Grotesk, tight tracking, compressed line-height, but sized for
+   * real interface use, not hero drama. Pages that need hero-scale type
+   * (the landing page) set their own explicit size via a Tailwind
+   * utility, which — because utilities live in a later cascade layer than
+   * `base` — already overrides these rules today without any change here.
+   */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: var(--font-heading-weight);
+    margin: 0;
+  }
+  h1 { font-size: 36px; line-height: 0.98; letter-spacing: -0.025em; }
+  h2 { font-size: 27px; line-height: 1.04; letter-spacing: -0.02em; }
+  h3 { font-size: 21px; line-height: 1.1; letter-spacing: -0.015em; }
+  h4 { font-size: 17px; line-height: 1.15; letter-spacing: -0.01em; }
+  h5 { font-size: 14.5px; line-height: 1.2; letter-spacing: -0.005em; }
+  h6 {
+    font-size: 11px; line-height: 1.3; letter-spacing: 0.08em;
+    text-transform: uppercase; font-weight: 600;
+  }
+
+  p { margin: 0; }
+  a { color: var(--color-accent); text-underline-offset: 3px; }
+  img { display: block; max-width: 100%; }
+  button { font: inherit; color: inherit; }
+  code, kbd, samp, pre { font-family: var(--font-mono); }
+
+  :focus { outline: none; }
+  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--color-accent-fill) 45%, transparent); }
+
+  input[type="date"], input[type="time"], input[type="datetime-local"] {
+    color-scheme: light;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ───────────────────────── components ───────────────────────── */
+
+@layer components {
+  /* — images — anything darker than the page falls away. */
+  .lighten { mix-blend-mode: multiply; background-color: transparent; }
+
+  /* — rules — freestanding rules fade; box outlines stay solid. */
+  .hr {
+    height: 1px; border: 0; margin: var(--space-4) 0;
+    background: var(--rule-fade-wide);
+  }
+
+  /* — small caps label above a block — */
+  .kick {
+    font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--color-neutral-600);
+  }
+  .card-kicker {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--color-accent);
+  }
+
+  /* — key / value row with a fading rule beneath — */
+  .metarow {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 9px 0; font-size: 13px;
+    background: var(--rule-fade) no-repeat bottom / 100% 1px;
+  }
+  .metarow > :first-child { color: var(--color-neutral-600); flex: none; }
+  .metarow > :last-child { text-align: right; min-width: 0; }
+
+  /* — stat blocks — */
+  .kpi { flex: 1; min-width: 0; padding: var(--space-6) var(--space-8); }
+  .kpi + .kpi { border-left: 1px solid var(--color-divider); }
+  .kpin { font-family: var(--font-display); font-size: 29px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.1; }
+  .kpil {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--color-neutral-600); margin-top: 4px;
+  }
+
+  /* — progress bar — */
+  .bar { height: 4px; border-radius: 2px; background: var(--color-neutral-800); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--color-accent); transition: width 300ms ease; }
+
+  /*
+   * — buttons — primary is now an ink fill (the reference's one signature
+   * button), mint on hover. Secondary keeps its box for layout parity with
+   * primary (two CTAs side by side must stay the same height) but drops
+   * the border for an inset underline — the reference's "text-arrow"
+   * language — so the two read as fill vs. line rather than fill vs. a
+   * second, weaker box.
+   */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; text-decoration: none; white-space: nowrap;
+    font-weight: var(--font-heading-weight); font-size: 14px; line-height: 1.2;
+    color: var(--color-text);
+    background: transparent; border: 1px solid transparent;
+    padding: var(--space-2) calc(var(--space-3) * 1.2);
+    min-height: 36px;
+    border-radius: var(--radius-md);
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  }
+  .btn svg { display: block; flex: none; }
+  .btn:disabled, .btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+  .btn-primary {
+    color: var(--color-bg); background: var(--color-text); border-color: var(--color-text);
+  }
+  .btn-primary:hover { color: var(--color-text); background: var(--color-accent-fill); border-color: var(--color-accent-fill); transform: translateY(-2px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-secondary {
+    border-color: transparent; box-shadow: inset 0 -1px 0 0 var(--color-text); border-radius: 0;
+  }
+  .btn-secondary:hover { color: var(--color-accent); box-shadow: inset 0 -1px 0 0 var(--color-accent); }
+  .btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); min-height: 0; }
+  .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent-fill) 35%, transparent); }
+  .btn-ghost:active { background: color-mix(in srgb, var(--color-accent-fill) 55%, transparent); }
+  .btn-danger { color: var(--color-danger); border-color: var(--color-danger); }
+  .btn-danger:hover { background: color-mix(in srgb, var(--color-danger) 12%, transparent); }
+  .btn-icon { width: 36px; height: 36px; padding: 0; }
+  .btn-block { width: 100%; }
+  .btn-lg { padding: 12px 22px; font-size: 15px; min-height: 44px; }
+  .btn-sm { font-size: 12.5px; padding: 4px 10px; min-height: 30px; }
+  /*
+   * The one other filled button, reserved for "poster energy" moments
+   * (a fest's own hero, a landing-page CTA) — ink text on raw mint,
+   * matching the reference's action-button exactly.
+   */
+  .btn-fill {
+    background: var(--color-accent-fill); color: var(--color-text);
+    border-color: var(--color-accent-fill); font-weight: 600;
+  }
+  .btn-fill:hover { background: var(--color-text); color: var(--color-accent-fill); border-color: var(--color-text); }
+  .btn-fill:active { background: var(--color-neutral-200); }
+
+  /* — forms — */
+  .field > label, .field-label {
+    display: block; font-size: 12px; margin-bottom: 5px;
+    color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  }
+  .input {
+    width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+    font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+    background: var(--color-surface);
+    border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+    transition: border-color 120ms ease;
+  }
+  .input::placeholder { color: var(--color-neutral-700); }
+  .input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+  .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+  .input[aria-invalid="true"] { border-color: var(--color-danger); }
+  .input:disabled { opacity: 0.45; cursor: not-allowed; }
+  textarea.input { min-height: 90px; resize: vertical; }
+  select.input { appearance: none; padding-right: 30px; }
+  .field-error { font-size: 12px; color: var(--color-danger); margin-top: 5px; }
+  .field-hint { font-size: 12px; color: var(--color-neutral-600); margin-top: 5px; }
+
+  .radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+  .radio input, .seg-opt input {
+    position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+  }
+  .radio .dot {
+    width: 16px; height: 16px; flex: none; border-radius: 50%;
+    border: 1.5px solid var(--color-divider);
+  }
+  .radio:hover .dot { border-color: var(--color-accent); }
+  .radio input:checked + .dot {
+    border-color: var(--color-accent); background: var(--color-accent);
+    box-shadow: inset 0 0 0 4px var(--color-bg);
+  }
+  .radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+  .seg {
+    display: inline-flex; overflow: hidden; max-width: 100%;
+    border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  }
+  .seg-opt {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 7px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;
+    position: relative;
+  }
+  .seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+  .seg-opt:has(input:checked), .seg-opt[data-state="on"], .seg-opt[aria-pressed="true"] {
+    color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent);
+  }
+  .seg-opt:not(:has(input:checked)):not([data-state="on"]):hover {
+    background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  }
+  .seg-opt:has(input:focus-visible), .seg-opt:focus-visible {
+    outline: 2px solid var(--color-accent); outline-offset: -2px;
+  }
+  .seg-fill > .seg-opt { flex: 1; }
+
+  /* — cards — sharp corners, a hairline edge, no soft floating shadow. */
+  .card {
+    display: flex; flex-direction: column; gap: var(--space-2);
+    padding: var(--space-3); border-radius: var(--radius-sm); background: var(--color-surface);
+  }
+  .card-title { font-family: var(--font-display); font-weight: var(--font-heading-weight); font-size: 17px; line-height: 1.2; }
+  .card-body { margin: 0; font-size: 13px; opacity: 0.75; flex: 1; }
+  .card-meta {
+    display: flex; align-items: center; gap: 6px; font-size: 11px;
+    color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  }
+  .elev-sm { box-shadow: var(--shadow-sm); }
+  .elev-md { box-shadow: var(--shadow-md); }
+  .elev-lg { box-shadow: var(--shadow-lg); }
+  /* An outlined panel on the page ground — used constantly in the design. */
+  .panel { border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+  .note {
+    padding: var(--space-4); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);
+    font-size: 12.5px; color: var(--color-neutral-500);
+  }
+  .note > .note-title { color: var(--color-text); margin-bottom: 5px; }
+
+  /* — tags — light tint background, dark readable text; the one bold
+     exception is `.tag-live`, a solid mint chip for real-time status. */
+  .tag {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
+    letter-spacing: 0.02em; padding: 3px 10px; white-space: nowrap;
+    border-radius: var(--radius-sm); line-height: 1.5;
+  }
+  .tag svg { flex: none; }
+  .tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
+  .tag-neutral { background: var(--color-neutral-800); color: var(--color-neutral-100); }
+  .tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+  .tag-danger { background: var(--color-danger-800); color: var(--color-neutral-100); }
+  .tag-live {
+    background: var(--color-accent-fill); color: var(--color-text);
+    font-weight: 600; letter-spacing: 0.06em;
+  }
+
+  /* — navigation — */
+  .nav {
+    display: flex; align-items: center; gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+  }
+  .nav-brand {
+    font-family: var(--font-display); font-weight: var(--font-heading-weight); font-size: 18px; margin-right: auto;
+    color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+    /* Never squeezed by a long nav: the role label wrapped over the first link on a phone. */
+    flex: none; white-space: nowrap;
+  }
+  .nav-role { font-size: 11px; color: var(--color-neutral-600); letter-spacing: 0.06em; }
+  .nav a, .nav-link {
+    color: inherit; text-decoration: none; font-size: 13.5px;
+    transition: color 120ms ease;
+  }
+  .nav a:hover, .nav a[aria-current="page"], .nav-link:hover, .nav-link[aria-current="page"] {
+    color: var(--color-accent);
+  }
+
+  /* — mobile tap bar — */
+  .tapbar {
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 9px 0 calc(16px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-divider); background: var(--color-bg);
+  }
+  .tapitem {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 9.5px; letter-spacing: 0.02em; color: var(--color-neutral-600);
+    text-decoration: none; min-width: 56px;
+  }
+  .tapdot { display: grid; place-items: center; width: 20px; height: 20px; }
+  .tapitem[data-on], .tapitem[aria-current="page"] { color: var(--color-accent); }
+
+  /* — tables — row rules fade at both ends, as strips on the row. */
+  .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .table th {
+    text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: color-mix(in srgb, var(--color-text) 55%, transparent);
+    padding: var(--space-2); font-weight: 500; white-space: nowrap;
+  }
+  .table td { padding: var(--space-2); vertical-align: middle; }
+  .table thead tr { background: var(--rule-fade-wide) no-repeat bottom / 100% 1px; }
+  .table tbody tr {
+    background: linear-gradient(to right,
+      transparent, color-mix(in srgb, var(--color-text) 10%, transparent) 48px,
+      color-mix(in srgb, var(--color-text) 10%, transparent) calc(100% - 48px), transparent)
+      no-repeat bottom / 100% 1px;
+  }
+  .table tbody tr:hover {
+    background:
+      linear-gradient(color-mix(in srgb, var(--color-text) 3%, transparent),
+                      color-mix(in srgb, var(--color-text) 3%, transparent)) no-repeat 0 0 / 100% 100%,
+      linear-gradient(to right,
+        transparent, color-mix(in srgb, var(--color-text) 10%, transparent) 48px,
+        color-mix(in srgb, var(--color-text) 10%, transparent) calc(100% - 48px), transparent)
+        no-repeat bottom / 100% 1px;
+  }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* — dialog — */
+  .dialog-backdrop {
+    position: fixed; inset: 0; z-index: 50;
+    background: color-mix(in srgb, var(--color-text) 45%, transparent);
+    backdrop-filter: blur(2px);
+  }
+  .dialog {
+    display: flex; flex-direction: column; gap: var(--space-3);
+    padding: var(--space-6); border-radius: var(--radius-lg);
+    background: var(--color-surface); box-shadow: var(--shadow-lg);
+  }
+  .dialog-title { font-family: var(--font-display); font-weight: var(--font-heading-weight); font-size: 20px; }
+  .dialog-body { font-size: 14px; opacity: 0.8; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+  /* — timeline — a left rail with dots, from the analytics and volunteer screens. */
+  .timeline {
+    display: flex; flex-direction: column; gap: 14px; padding-left: 12px;
+    box-shadow: inset 1px 0 0 var(--color-divider);
+  }
+  .timeline-item { position: relative; }
+  .timeline-item::before {
+    content: ""; position: absolute; left: -16px; top: 5px;
+    width: 7px; height: 7px; border-radius: 50%; background: var(--color-neutral-700);
+  }
+  .timeline-item[data-live]::before { background: var(--color-accent); }
+
+  /* — the mono ticket / certificate code — */
+  .code {
+    font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.12em;
+  }
+
+  /* — placeholder artwork block, until real images are uploaded — */
+  .ph {
+    background-image: repeating-linear-gradient(135deg, var(--color-divider) 0 6px, transparent 6px 12px);
+    background-color: var(--color-surface);
+    display: flex; align-items: flex-end;
+  }
+
+  /* — scanner viewfinder corners — mint deliberately: this overlays live
+     camera video, not the page background, so the "invisible on bone"
+     problem doesn't apply, and mint is the most visible color against
+     unpredictable real-world footage. */
+  .viewfinder > span {
+    position: absolute; width: 34px; height: 34px; border: 0 solid var(--color-accent-fill);
+  }
+  .viewfinder > span:nth-child(1) { left: 0; top: 0; border-left-width: 2px; border-top-width: 2px; border-radius: 6px 0 0 0; }
+  .viewfinder > span:nth-child(2) { right: 0; top: 0; border-right-width: 2px; border-top-width: 2px; border-radius: 0 6px 0 0; }
+  .viewfinder > span:nth-child(3) { left: 0; bottom: 0; border-left-width: 2px; border-bottom-width: 2px; border-radius: 0 0 0 6px; }
+  .viewfinder > span:nth-child(4) { right: 0; bottom: 0; border-right-width: 2px; border-bottom-width: 2px; border-radius: 0 0 6px 0; }
+
+  /* — skeleton — */
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-neutral-800) 50%, var(--color-surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+  }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+}
+
+/* ───────────────────────── utilities ───────────────────────── */
+
+@utility rule-b { background: var(--rule-fade) no-repeat bottom / 100% 1px; }
+@utility text-balance { text-wrap: balance; }
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+/* The reference's serif-italic emphasis word, e.g. the "matter." in a
+   display headline. Font only — color is left to the call site, since the
+   reference varies it per section (it is never applied automatically to
+   every <em>, only where a design deliberately calls for it). */
+@utility text-emphasis {
+  font-family: var(--font-serif-emphasis);
+  font-style: italic;
+  font-weight: 400;
+}
+/* Reusable hairline grid-line texture, for marketing sections and major
+   dashboard hero areas — not intended behind ordinary product components. */
+@utility bg-grid-lines {
+  background-image:
+    linear-gradient(var(--color-divider) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-divider) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+/* Safe-area padding for the scanner and tap bar on notched phones. */
+@utility pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+@utility pt-safe { padding-top: env(safe-area-inset-top); }
+
+/* html5-qrcode injects its own chrome; hide everything but the video. */
+#qr-reader { border: none !important; }
+#qr-reader video { object-fit: cover; width: 100% !important; height: 100% !important; }
+#qr-reader__dashboard, #qr-reader__status_span, #qr-reader__header_message,
+#qr-reader img[alt="Info icon"], #qr-reader__scan_region img { display: none !important; }
+#qr-reader__scan_region { min-height: 0 !important; }
+
+/* ───────────────────────────── print ─────────────────────────────
+   A pass people can put in a pocket. The live theme is already light, but
+   print wants true white paper and ink-black text regardless. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #101010 !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .ticket-print,
+  .ticket-print * {
+    visibility: visible;
+  }
+
+  .ticket-actions,
+  .ticket-actions * {
+    visibility: hidden;
+  }
+
+  .ticket-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: 1px solid #d8d6d0 !important;
+    border-radius: 4px;
+    max-width: 100mm;
+    margin: 0 auto;
+    background: #fff !important;
+    color: #101010 !important;
+    break-inside: avoid;
+  }
+
+  .ticket-print .kick,
+  .ticket-print .text-neutral-500 {
+    color: #666663 !important;
+  }
+
+  .ticket-print .tag {
+    border: 1px solid #d8d6d0 !important;
+    color: #101010 !important;
+    background: none !important;
+  }
+
+  a[href]::after {
+    content: "" !important;
+  }
+}

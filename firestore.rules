@@ -1,0 +1,610 @@
+rules_version = '2';
+
+// Plansphere Firestore security rules.
+//
+// These are the real access-control boundary. The route guards in the app are
+// a convenience that stops a student from navigating into an admin screen;
+// they are not security, because anyone can call the Firestore REST API
+// directly with a valid ID token and skip the UI entirely. Anything that must
+// not happen has to be denied here.
+//
+// Roles live in custom claims on the Auth token (`request.auth.token.role`),
+// set by the server when a super admin creates a staff account. The `role`
+// field on the user document is a mirror kept for querying, and it is never
+// writable by a client — so a student cannot promote themselves by editing
+// their own profile.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------- helpers
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function role() {
+      // Accounts created before their claim propagates read as "student",
+      // which is the safe default: least privilege until proven otherwise.
+      // A "super_admin" claim counts only while the platform boundary lets it (below); otherwise it reads as a student,
+      // so isStaff / isAdmin / isSuperAdmin, and every rule built on them, treat that account as an ordinary one.
+      return signedIn() ? (ownRole() is string ? (ownRole() == 'super_admin' && !platformOk() ? 'student' : ownRole()) : 'student') : '';
+    }
+
+    // ---- The platform boundary (core/platform.ts) -------------------------------------------------------------------
+    // `super_admin` is the platform team. Until `platformConfig/boundary` exists with enforce = true, the role claim alone
+    // is enough, exactly as before. Once enforced, the account must also be on the registry `platformStaff/{uid}` (written
+    // only by `npm run platform-staff`; no rule here lets a client write it) and, when requireMfa is set, must have signed
+    // in with a second factor. Only an account that already carries the claim ever reaches these reads.
+    function platformBoundaryPath() { return /databases/$(database)/documents/platformConfig/boundary; }
+    function platformEnforced() {
+      return exists(platformBoundaryPath()) && get(platformBoundaryPath()).data.get('enforce', false) == true;
+    }
+    function platformRegistered() {
+      return exists(/databases/$(database)/documents/platformStaff/$(request.auth.uid))
+          && get(/databases/$(database)/documents/platformStaff/$(request.auth.uid)).data.get('status', '') == 'active';
+    }
+    function platformSecondFactorOk() {
+      return get(platformBoundaryPath()).data.get('requireMfa', false) != true
+          || request.auth.token.get('firebase', {}).get('sign_in_second_factor', '') != '';
+    }
+    function platformOk() {
+      return !platformEnforced() || (platformRegistered() && platformSecondFactorOk());
+    }
+
+    // The account's own role. `br` is written only for an account that holds an event role: its `role` claim is then raised
+    // so the app lets it into the admin area, and `br` keeps what the account itself is. Every rule below reads THIS, so an
+    // event role on one fest can never lend an account admin powers on another.
+    function ownRole() {
+      return request.auth.token.get('br', request.auth.token.get('role', 'student'));
+    }
+
+    // Four roles. "organizer" is the old name for "volunteer" and is still
+    // accepted here so a token minted before the refactor keeps working until
+    // it refreshes; the migration rewrites every claim.
+    function isStudent()    { return role() == 'student'; }
+    function isStaff()      { return role() in ['volunteer', 'organizer', 'admin', 'super_admin']; }
+    function isVolunteer()  { return role() in ['volunteer', 'organizer']; }
+    function isAdmin()      { return role() in ['admin', 'super_admin']; }
+    function isSuperAdmin() { return role() == 'super_admin'; }
+
+    // Every staff role is scoped to the fests listed on their token, admins
+    // included. Only a super admin is unscoped: the platform is their scope.
+    function managesFest(festId) {
+      return passwordSettled() && (isSuperAdmin() || legacyManages(festId) || headOf(festId));
+    }
+
+    // ---- Event-level roles (see core/models/membership.ts) ---------------------------------------------------------
+    // An account that holds a membership on a fest is governed by that membership alone on that fest. The claim `fm`
+    // lists those fests; `festIds` stays the account's own legacy, fest-wide scope. The membership document is read
+    // live, so a suspension or revocation takes effect on the very next request, whatever the token says.
+    //
+    // The token lists those fests in `fm` while the list fits (Firebase caps the claims at 1,000 bytes). An account with many
+    // event roles carries `fx: true` instead, and the rules look for the membership document of whichever fest is being asked
+    // about. Either way the claim only says where to look: the authority is the document, read live.
+    function membershipPath(festId) {
+      return /databases/$(database)/documents/festMembers/$(festId + '__' + uid());
+    }
+    function governedByMembership(festId) {
+      return (request.auth.token.get('fm', []) is list && festId in request.auth.token.get('fm', []))
+          || (request.auth.token.get('fx', false) == true && exists(membershipPath(festId)));
+    }
+    function membershipOf(festId) {
+      return get(membershipPath(festId)).data;
+    }
+    function activeMember(festId) {
+      return passwordSettled() && governedByMembership(festId) && membershipOf(festId).status == 'active';
+    }
+    // Fest-wide: only the Event Head. Everyone else with a membership is limited to the sub-events they are assigned.
+    function headOf(festId) {
+      return activeMember(festId) && membershipOf(festId).role == 'head';
+    }
+    function memberCovers(festId, eventId, roles) {
+      return activeMember(festId)
+        && membershipOf(festId).role in roles
+        && eventId in membershipOf(festId).eventIds;
+    }
+    // Admin-level authority on one fest: the platform, the fest's Event Head, or a pre-membership admin scoped to it.
+    function adminOf(festId) {
+      return passwordSettled() && (isSuperAdmin() || headOf(festId) || (legacyManages(festId) && isAdmin()));
+    }
+    // May ask whether a record exists yet: admins, and anyone who holds an event role.
+    function probeOk() {
+      return passwordSettled() && (isAdmin() || request.auth.token.get('fx', false) == true || (request.auth.token.get('fm', []) is list && request.auth.token.get('fm', []).size() > 0));
+    }
+
+    // A pre-membership account scoped by festIds. Not for a fest it holds a membership on.
+    function legacyManages(festId) {
+      return isStaff()
+        && request.auth.token.get('festIds', []) is list
+        && festId in request.auth.token.get('festIds', [])
+        && !governedByMembership(festId);
+    }
+
+    // A temporary password may not be used to read or write anything: the
+    // holder sets their own first. An absent claim means "not restricted".
+    function passwordSettled() {
+      return signedIn() && request.auth.token.get('mustChangePassword', false) != true;
+    }
+
+    // What a volunteer may do, in full: record attendance and meals for a
+    // fest they are rostered on. Everything else on the staff side is admin+.
+
+    // Staff, with a settled password. The common precondition.
+    function staffOk() { return isStaff() && passwordSettled(); }
+    function adminOk() { return isAdmin() && passwordSettled(); }
+
+    function isOwner(userId) {
+      return signedIn() && uid() == userId;
+    }
+
+    // Named on a team entry by the email on the token. Firestore can prove
+    // this for a `where("memberEmails", "array-contains", email)` list.
+    function isTeamMember(memberEmails) {
+      return signedIn()
+        && request.auth.token.email is string
+        && memberEmails is list
+        && request.auth.token.email in memberEmails;
+    }
+
+    // For attendance/meal docs keyed by registration id: one read to learn
+    // who is on the team the doc belongs to.
+    function onRegistration(registrationId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/registrations/$(registrationId))
+        && isTeamMember(get(/databases/$(database)/documents/registrations/$(registrationId)).data.memberEmails);
+    }
+
+    // The admission rule, mirrored from src/core/models/admission.ts (`admissionBlock`),
+    // which every other gate uses. An entry is admitted only if it exists, is confirmed
+    // and, when it was charged, the payment is verified. Draft teams (not yet at their
+    // minimum size), waitlisted, pending_payment, cancelled and any unrecognised status
+    // are refused — a draft becomes admissible the moment it is confirmed.
+    // A missing `status` is a confirmed entry that predates the field; a missing
+    // `paymentStatus` is a free one. tests/emulator/admission.test.ts pins this table.
+    function admissible(registrationId) {
+      return exists(/databases/$(database)/documents/registrations/$(registrationId))
+        && get(/databases/$(database)/documents/registrations/$(registrationId)).data.get('status', 'confirmed') == 'confirmed'
+        && get(/databases/$(database)/documents/registrations/$(registrationId)).data.get('paymentStatus', 'not_required') in ['not_required', 'paid'];
+    }
+
+    // The fest an event belongs to, for rules on records that carry an event id (attendance, meals). A missing event
+    // makes the rule error, which denies.
+    function festOfEvent(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data.festId;
+    }
+
+    // Staff, with a settled password, whose assigned fests overlap this list (a profile's `festIds`). A super admin is
+    // unscoped. A student's profile has no festIds, so no volunteer or admin can read one from the client; the server
+    // (Admin SDK) is how staff reach participants, and it applies its own fest checks.
+    function staffSharesFest(festIds) {
+      return passwordSettled()
+        && (isSuperAdmin()
+            || (isStaff()
+                && festIds is list
+                && request.auth.token.get('festIds', []) is list
+                && festIds.hasAny(request.auth.token.get('festIds', []))));
+    }
+
+    // Fields changed by this write.
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function onlyChanged(fields) {
+      return changed().hasOnly(fields);
+    }
+
+    // Writes that must come from the server (Admin SDK) are denied outright.
+    // The Admin SDK bypasses these rules, so `false` here means "server only",
+    // not "impossible".
+    function serverOnly() {
+      return false;
+    }
+
+    // ------------------------------------------------------------------ users
+
+    match /users/{userId} {
+      // A signed-in user reads their own profile. Staff read only the profiles of accounts assigned to one of their own
+      // fests (a volunteer rostered on it, for example); a super admin reads any. Participants are not reachable from a
+      // staff client at all: the admin screens read the registration, and anything more goes through the server.
+      allow get: if isOwner(userId) || staffSharesFest(resource.data.get('festIds', []));
+      // No client lists profiles. The platform's people screens go through /api/admin/staff, which is scoped server-side.
+      allow list: if passwordSettled() && isSuperAdmin();
+
+      // Self sign-up. Constrained hard: the document id must equal the caller's
+      // uid, the email must match the verified token, and the role must be
+      // exactly "student". This is the rule that makes privilege escalation
+      // through self-registration impossible — the previous project let anyone
+      // hitting /admin-register write themselves an organizer record.
+      allow create: if isOwner(userId)
+                    && request.resource.data.id == userId
+                    && request.resource.data.role == 'student'
+                    && request.resource.data.email == request.auth.token.email
+                    && request.resource.data.disabled == false
+                    // A self-registered account can never arrive scoped to a
+                    // fest or holding a staff flag.
+                    && request.resource.data.get('festIds', []) == []
+                    && request.resource.data.get('mustChangePassword', false) == false;
+
+      // A user edits their own profile, but may never touch role, disabled,
+      // email or the organizer block.
+      // Profile fields only. Role, scope, the password flag, disabled and
+      // email are server-owned. `profileCompleted` is writable by the owner
+      // because finishing the profile is what sets it, and the API path
+      // recomputes it server-side anyway.
+      allow update: if isOwner(userId)
+                    && onlyChanged([
+                         'name', 'fullName', 'phone', 'avatar', 'photoUrl',
+                         'college', 'department', 'year', 'studentId', 'student',
+                         'emailVerified', 'profileCompleted', 'updatedAt'
+                       ])
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.get('disabled', false) == resource.data.get('disabled', false)
+                    && request.resource.data.get('festIds', []) == resource.data.get('festIds', [])
+                    && request.resource.data.get('mustChangePassword', false) == resource.data.get('mustChangePassword', false);
+
+      // Deleting an account removes the audit trail behind every registration
+      // and certificate it owns. Server only.
+      allow delete: if serverOnly();
+    }
+
+    // ------------------------------------------------------------------ fests
+
+    match /fests/{festId} {
+      // Anyone, signed in or not, can browse published fests.
+      //
+      // An application still under review (or turned down) is not a fest yet: it carries an unvetted organization's name,
+      // contact email and applicant.
+      //
+      // Firestore proves a list from the query's own filters, and no query can promise "nothing pending", so staff do not
+      // list fests: a super admin lists them all, and everyone else reads their own fests one document at a time.
+      // A draft (and an application still under review, and an archived fest) is not public. It is readable by the people
+      // who run THIS fest - its Event Head, anyone holding an event role on it, a pre-membership account scoped to it, the
+      // platform - and nobody else, whatever their role elsewhere. Staff of another fest are strangers to it.
+      allow get: if resource.data.status == 'published'
+                 || activeMember(festId)
+                 || managesFest(festId);
+      allow list: if resource.data.status == 'published'
+                  || (staffOk() && isSuperAdmin());
+
+      // Creation moved to POST /api/admin/fests, which checks the address
+      // for collisions, records the owner and writes the audit entry. Closing
+      // the client path is what makes that trail complete rather than
+      // optional.
+      allow create: if serverOnly();
+
+      // Admins edit the fest. A volunteer (a scanner) may only move the
+      // public counters — the scan transaction bumps `stats.checkIns` — and
+      // may not rename or reschedule anything.
+      //
+      // Five fields are the platform owner's and travel through the server so
+      // they are audited: who owns the fest, what it asks its students for,
+      // archiving it, and whether its self-service application was approved.
+      // An admin editing their own fest cannot touch them from here even
+      // though they can edit everything else - in particular they cannot mark
+      // their own event verified, and an event still under review (or turned
+      // down) cannot be published from the client by anyone.
+      allow update: if (adminOf(festId)
+                        && !changed().hasAny(['ownerId', 'registrationFields', 'archivedAt', 'createdBy', 'slug', 'verification'])
+                        // Who the event belongs to is what the review verified. Once a fest has been through it, only the
+                        // platform changes the organization's name, type or website; the event's own admin does not.
+                        && (isSuperAdmin()
+                            || resource.data.get('verification', null) == null
+                            || !changed().hasAny(['organizationName', 'organizationType', 'organizationWebsite']))
+                        && request.resource.data.status != 'archived'
+                        && !(request.resource.data.status == 'published'
+                             && resource.data.get('verification', {}).get('status', 'legacy') in ['pending', 'rejected']))
+;
+
+      // Only a super admin retires a fest, and only through the server, which
+      // checks that no events still hang off it.
+      allow delete: if serverOnly();
+    }
+
+    // ----------------------------------------------------------------- events
+
+    match /events/{eventId} {
+      // Likewise a draft competition: only the people who run its fest read it. A staff query has to name the fest it is
+      // about (`where("festId", "==", id)`), which is how Firestore proves it stays inside one.
+      allow get, list: if resource.data.status in ['published', 'ongoing', 'completed']
+                       || managesFest(resource.data.festId)
+                       || activeMember(resource.data.festId);
+
+      // Every event write goes through /api/admin/events, which checks fest
+      // scope, refuses a capacity below the seats already taken, locks team
+      // size once entries exist, keeps the fest's event counter honest and
+      // records the change in the audit log. None of that fits in a rule.
+      allow create, update, delete: if serverOnly();
+    }
+
+    // ---------------------------------------------------------- registrations
+
+    match /registrations/{registrationId} {
+      // The person who made the entry sees it, and so does staff of the fest it belongs to (a super admin sees all).
+      // `list` works for both because the query is constrained: `where("userId", "==", uid)` for the owner,
+      // `where("festId", "==", id)` for staff. A staff query that does not name a fest they manage is refused.
+      //
+      // Teammates are deliberately NOT listed here. The entry carries every member's email, phone, college and ID, which
+      // the person who entered them chose to share with the organiser, not with the rest of the team. A teammate reads
+      // the shared ticket through GET /api/registrations/mine, which returns a view with the other members' contact
+      // details removed. (`onRegistration()` below still lets rules, not clients, use the member list.)
+      //
+      // Volunteers read none of this: the gate gets a minimal roster from the server (/api/volunteer/roster), with no
+      // email, phone, college or answers. An admin or coordinator reads the entries of the sub-events they are assigned.
+      allow get: if isOwner(resource.data.userId)
+                 || (adminOf(resource.data.festId))
+                 || memberCovers(resource.data.festId, resource.data.eventId, ['admin', 'coordinator']);
+      allow list: if isOwner(resource.data.userId)
+                  || (adminOf(resource.data.festId))
+                  || memberCovers(resource.data.festId, resource.data.eventId, ['admin', 'coordinator']);
+
+      // Registration goes through POST /api/registrations, which re-checks
+      // capacity, the deadline and duplicates inside a transaction and bumps
+      // the event counter atomically. None of that is expressible here, and
+      // doing it client-side is what makes overbooking possible.
+      allow create: if serverOnly();
+
+      // A student may cancel their own entry, and nothing else about it. The
+      // seat is released by the server when it sees the status change.
+      allow update: if isOwner(resource.data.userId)
+                    && onlyChanged(['status', 'cancelledAt', 'updatedAt'])
+                    && request.resource.data.status == 'cancelled'
+                    && resource.data.status == 'confirmed'
+                    // A paid entry is cancelled through the API, which also records the refund owed.
+                    && resource.data.get('paymentStatus', 'not_required') == 'not_required';
+
+      allow delete: if serverOnly();
+    }
+
+    // ------------------------------------------------------------- attendance
+
+    match /attendance/{registrationId} {
+      // A student can confirm their own check-in; staff see the whole feed.
+      // Teammates read it too — the check-in is the team's, not the leader's.
+      //
+      // A volunteer reads none of it: what the gate needs comes from the server. An admin or coordinator reads the check-ins
+      // of the sub-events they are assigned. An admin may `get` a check-in that does not exist yet (`resource == null`),
+      // which is how a desk asks "has this entry arrived?".
+      allow get: if ((resource == null && probeOk()) || (resource != null && adminOf(resource.data.festId)))
+                 || (resource != null && memberCovers(resource.data.festId, resource.data.eventId, ['admin', 'coordinator']))
+                 || (resource != null && isOwner(resource.data.userId))
+                 || onRegistration(registrationId);
+      // Staff list only the records of a fest they manage. The screens ask either by fest (`where("festId", "==", id)`, the
+      // gate feed) or by event (`where("eventId", "==", id)`), so either one, proven from the query, is enough; for the
+      // by-event query the fest is looked up from the event.
+      allow list: if (adminOf(resource.data.festId) || adminOf(festOfEvent(resource.data.eventId)))
+                  || memberCovers(festOfEvent(resource.data.eventId), resource.data.eventId, ['admin', 'coordinator'])
+                  || isOwner(resource.data.userId);
+
+      // Scanning is a server action (/api/volunteer/scan): it checks the volunteer's duty and sub-event, the admission
+      // rule, and writes the record in a transaction, so one document per entry however many times its QR is scanned and
+      // no client - a volunteer's phone included - writes a check-in itself.
+      allow create, update: if serverOnly();
+
+      // Undoing a mistaken check-in is an admin action, not an organizer one.
+      allow delete: if adminOf(resource.data.festId);
+    }
+
+    // -------------------------------------------------------- foodCollections
+
+    match /foodCollections/{collectionId} {
+      // As with attendance: volunteers read none of it; admins and coordinators read their assigned sub-events'.
+      allow get: if ((resource == null && probeOk()) || (resource != null && adminOf(resource.data.festId)))
+                 || (resource != null && memberCovers(resource.data.festId, resource.data.eventId, ['admin', 'coordinator']))
+                 || (resource != null && isOwner(resource.data.userId));
+      allow list: if (adminOf(resource.data.festId) || adminOf(festOfEvent(resource.data.eventId)))
+                  || memberCovers(festOfEvent(resource.data.eventId), resource.data.eventId, ['admin', 'coordinator'])
+                  || isOwner(resource.data.userId);
+
+      // The id encodes entry + day + meal round + *member*, so one person collecting the same round twice is a write to a
+      // document that already exists. Handing out a meal is a server action (/api/volunteer/meal), which turns that into a
+      // refusal rather than a second helping; no client writes one.
+      allow create, update: if serverOnly();
+      allow delete: if adminOf(resource.data.festId);
+    }
+
+    // What a volunteer may NOT do is as important as what they may, and it is
+    // worth naming in one place because the UI is not the boundary:
+    //
+    //   registrations   read within their fest, never write — the roster is
+    //                   the students' and the admins', and `allow update` on
+    //                   /registrations is owner-only for a cancellation
+    //   certificates    admin+ only on the staff side; a volunteer reads
+    //                   nothing here, not even for their own fest
+    //   auditLog,
+    //   emailLog        adminOk() only — a volunteer reading the trail could
+    //                   read every email address the fest has ever mailed
+    //   users           a volunteer can read profiles for the gate, but
+    //                   `allow update` is the owner's alone, so no edits
+    //   fests           stats only, and only while scanning
+    //
+    // Export is not a permission because there is no export: a volunteer's
+    // screens read the roster for the event they are rostered on and nothing
+    // paginates past it.
+
+    // ---------------------------------------------------------------- results
+
+    match /results/{eventId} {
+      // Students see results only once they are published.
+      // Unpublished results are staff-only, and only for a fest the staff member manages. Staff may `get` an event that has
+      // no results yet (the results screen opens before anything is saved), as with attendance.
+      allow get, list: if resource.data.status == 'published'
+                       || ((resource == null && probeOk()) || (resource != null && adminOf(resource.data.festId)))
+                       || (resource != null && memberCovers(resource.data.festId, eventId, ['admin', 'coordinator']));
+
+      // Publishing results is what triggers certificate generation, so it is
+      // restricted to super admins and routed through the server, which
+      // validates that every listed entry actually competed in this event.
+      allow create, update, delete: if serverOnly();
+    }
+
+    // ----------------------------------------------------------- certificates
+
+    match /certificates/{certificateId} {
+      // A student sees only their own, and only once it has been released
+      // and not revoked. A certificate an admin has prepared but the platform
+      // owner has not published does not exist yet as far as its recipient is
+      // concerned — `published` is absent on everything issued before the
+      // release desk, which reads as released, because those were already
+      // emailed.
+      // Staff reads are admin+, not any staff: a volunteer works a gate and
+      // has no business reading who won what, still less listing every
+      // certificate a fest has issued.
+      allow get: if (isOwner(resource.data.userId)
+                     && resource.data.revoked == false
+                     && resource.data.get('published', true) == true)
+                 || (adminOf(resource.data.festId))
+                 || memberCovers(resource.data.festId, resource.data.eventId, ['admin']);
+      // An admin lists the certificates of a fest they manage (asked by fest, or by event in that fest), not every fest's.
+      allow list: if (adminOf(resource.data.festId) || adminOf(festOfEvent(resource.data.eventId)))
+                  || memberCovers(festOfEvent(resource.data.eventId), resource.data.eventId, ['admin'])
+                  || (isOwner(resource.data.userId)
+                      && resource.data.revoked == false
+                      && resource.data.get('published', true) == true);
+
+      // Issued, revoked and delivery-stamped by the server only. A client that
+      // could write here could award itself a first prize.
+      allow create, update, delete: if serverOnly();
+    }
+
+    // ---------------------------------------------------------- notifications
+
+    match /notifications/{notificationId} {
+      allow get, list: if isOwner(resource.data.userId);
+
+      allow create: if serverOnly();
+
+      // The recipient may mark it read. Nothing else.
+      allow update: if isOwner(resource.data.userId)
+                    && onlyChanged(['read', 'readAt', 'updatedAt']);
+
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // ----------------------------------------------------------------- shifts
+
+    match /shifts/{shiftId} {
+      // A volunteer sees their own roster; anyone managing the fest sees all.
+      allow get: if isOwner(resource.data.userId) || managesFest(resource.data.festId);
+      allow list: if (staffOk() && managesFest(resource.data.festId)) || adminOf(resource.data.festId);
+
+      // Rostering is an admin action — the same person who creates the
+      // volunteer's account assigns their post and window.
+      allow create: if adminOf(request.resource.data.festId)
+                    && request.resource.data.createdBy == uid();
+      allow update, delete: if adminOf(resource.data.festId);
+    }
+
+    // --------------------------------------------------------------- auditLog
+
+    match /auditLog/{entryId} {
+      // The trail is readable by whoever manages the fest it concerns, and by
+      // super admins for platform-wide entries. Written by the server only:
+      // a client that could write here could also cover its tracks.
+      allow get, list: if (passwordSettled() && isSuperAdmin())
+                       || (resource.data.festId is string && adminOf(resource.data.festId));
+      allow create, update, delete: if serverOnly();
+    }
+
+    // ------------------------------------------------------------------ deny
+
+    // Anything not matched above is denied. Without this, a collection added
+    // later would be wide open until someone remembered to write rules for it.
+    // --------------------------------------------------------------- emailLog
+
+    match /emailLog/{entryId} {
+      // Written only by the server as it sends. Read by whoever manages the
+      // fest an email concerns (and super admins for the rest), to answer
+      // "did the invite / certificate email actually go out?".
+      allow get, list: if (passwordSettled() && isSuperAdmin())
+                       || (resource.data.festId is string && adminOf(resource.data.festId));
+      allow create, update, delete: if serverOnly();
+    }
+
+    // -------------------------------------------------------- Live Event Engine
+
+    match /arenas/{arenaId} {
+      // Public: the live dashboard groups matches by arena for a visitor
+      // with no account. Written only by /api/admin/arenas, same as an
+      // event — an arena is a fest fixture, not something a client edits.
+      allow get, list: if true;
+      allow create, update, delete: if serverOnly();
+    }
+
+    match /matches/{matchId} {
+      // Public, for the same reason a published event is: a QR code or a
+      // shared link lands a stranger on a scoreboard with no sign-in.
+      // Every write — including a volunteer's own score taps — goes
+      // through /api/volunteer/matches/[id]/action, which is what enforces
+      // "your arena only" against the caller's Shift and appends the audit
+      // trail; neither of those a security rule can evaluate on its own.
+      allow get, list: if true;
+      allow create, update, delete: if serverOnly();
+    }
+
+    match /matchLog/{entryId} {
+      // The scoreboard's timeline — same public-read, server-only-write
+      // shape as the match it belongs to.
+      allow get, list: if true;
+      allow create, update, delete: if serverOnly();
+    }
+
+    // ---------------------------------------------------------------- payments
+    //
+    // Everything about money is written and read by the server only (Admin SDK,
+    // which bypasses these rules). They are named here, rather than left to the
+    // catch-all, so the intent survives someone later loosening the catch-all —
+    // and so the rules tests can assert it. In particular `paymentSecrets` holds
+    // encrypted merchant credentials and must never be readable by any client.
+
+    // The Event Head's personal details, kept off the world-readable fest document. Server only.
+    // ------------------------------------------------------------ festMembers
+    //
+    // Who holds which role on which main event. A person reads their own memberships; the Event Head (and the platform)
+    // read the whole fest's. Nothing writes here from a client: assigning, changing and revoking go through the members
+    // API, which is where "who may assign whom" is decided.
+    match /festMembers/{memberId} {
+      allow get, list: if isOwner(resource.data.userId)
+                       || (adminOf(resource.data.festId));
+      allow create, update, delete: if serverOnly();
+    }
+
+    match /festPrivate/{festId} {
+      allow read, write: if false;
+    }
+
+    match /paymentAccounts/{festId} {
+      allow read, write: if false;
+    }
+
+    // The platform registry and its switch. Read by the rules above (platformOk) and by the server; written only by
+    // `npm run platform-staff` against the service account. No client, whatever its role, reads or writes either.
+    match /platformStaff/{uid} {
+      allow read, write: if false;
+    }
+    match /platformConfig/{doc} {
+      allow read, write: if false;
+    }
+
+    match /paymentSecrets/{festId} {
+      allow read, write: if false;
+    }
+
+    match /payments/{registrationId} {
+      allow read, write: if false;
+    }
+
+    match /paymentEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

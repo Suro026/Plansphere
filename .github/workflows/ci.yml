@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Dummy web config so the build and the emulator suite initialise; the
+      # build is designed to pass without real Firebase credentials.
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci-fake-api-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: plansphere-test.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: plansphere-test
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "1"
+      NEXT_PUBLIC_FIREBASE_APP_ID: 1:1:web:ci
+      NEXT_PUBLIC_APP_URL: https://plansphere.in
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: npm ci
+
+      - name: Secret scan (tracked files)
+        run: npm run scan:secrets
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Unit & component tests
+        run: npm test
+
+      - name: Cache Firebase emulators
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Emulator tests (rules · repositories · API transactions)
+        run: npx firebase-tools@15 emulators:exec --only firestore,auth --project plansphere-test "npx vitest run --project emulator"
+
+      - name: Next.js build
+        run: npm run build

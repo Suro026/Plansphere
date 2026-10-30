@@ -1,0 +1,79 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+
+# Production
+/build
+/dist
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Secrets / credentials
+*firebase-admin-key*.json
+*service-account*.json
+serviceAccountKey.json
+
+# Firebase tooling
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Testing
+/coverage
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Claude Code project configuration (local tooling, not part of the app)
+.claude/
+
+# Video-demo tooling: emulator data, bundled seeder, generated account sheet
+.demo-data/
+.demo-build/
+.demo-accounts.md
+
+# Credentials that must never be committed
+firebase-admin-key.json
+serviceAccount*.json
+*-service-account*.json
+*.pem
+*.p12
+*.key
+.sentryclirc
+.vercel
+
+# Backups hold personal data (and Auth password hashes). They belong outside the repository; this is the safety net.
+/backups/
+/plansphere-backup*/
+/*-backup-*/
+*.ndjson.enc
+
+# Generated launch-video media (large; produced by the video tooling, never committed)
+/brag-output/

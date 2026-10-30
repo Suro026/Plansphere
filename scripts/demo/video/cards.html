@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Plansphere — vertical video cards (1080 × 1920)</title>
+<!--
+  Title cards for the 9:16 product video. Open this file in a browser; each card is exactly
+  1080 × 1920 and is shown scaled to fit the window (add ?actual to see it at 1:1 for capture).
+
+    cards.html#intro     cards.html#what     cards.html#c03 … #c20     cards.html#closing
+    cards.html#index     lists every card.   ← / → move between cards.
+
+  The logo is the ORIGINAL project asset, public/logo.png, used as-is: only its display size is set.
+  Nothing here is a product screen — the product itself is recorded from the running app.
+  Safe zone for Reels/Shorts/TikTok: keep text inside 90px side margins, 240px from the top and
+  420px from the bottom (those bands are covered by the platform's own interface).
+-->
+<style>
+  :root {
+    --bg: #f3f1ea;
+    --ink: #101010;
+    --muted: #5e5d57;
+    --mint: #cbf6df;
+    --green: #2f7d6d;
+    --safe-x: 90px;
+    --safe-top: 240px;
+    --safe-bottom: 420px;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #1a1a1a; font-family: "DM Sans", "Segoe UI", system-ui, sans-serif; }
+  #stage { position: fixed; left: 50%; top: 50%; width: 1080px; height: 1920px; transform-origin: center center; overflow: hidden; background: var(--bg); color: var(--ink); }
+  .card { position: absolute; inset: 0; padding: var(--safe-top) var(--safe-x) var(--safe-bottom); display: flex; flex-direction: column; justify-content: center; }
+  .card.dark { background: var(--ink); color: var(--bg); }
+  .logo { width: 760px; height: auto; display: block; }
+  .kick { font-size: 34px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: 36px; }
+  .dark .kick { color: #9a9992; }
+  h1 { font-size: 132px; line-height: .98; letter-spacing: -.035em; font-weight: 600; }
+  h2 { font-size: 112px; line-height: 1; letter-spacing: -.03em; font-weight: 600; }
+  p.lead { font-size: 52px; line-height: 1.25; margin-top: 44px; color: var(--muted); max-width: 860px; }
+  .dark p.lead { color: #d8d6d0; }
+  .tag { display: inline-block; align-self: flex-start; font-size: 30px; letter-spacing: .14em; text-transform: uppercase; padding: 14px 26px; border-radius: 999px; background: var(--mint); color: var(--ink); margin-bottom: 40px; }
+  .tag.secondary { background: transparent; border: 2px solid var(--muted); color: var(--muted); }
+  .num { font-size: 40px; color: var(--green); letter-spacing: .1em; margin-bottom: 28px; font-weight: 600; }
+  ol.points { list-style: none; padding: 0; margin-top: 64px; display: grid; gap: 38px; }
+  ol.points li { font-size: 54px; line-height: 1.2; padding-left: 0; }
+  ol.points b { display: block; font-size: 38px; letter-spacing: .14em; text-transform: uppercase; color: var(--green); margin-bottom: 10px; }
+  .center { align-items: center; text-align: center; }
+  .rule { width: 120px; height: 6px; background: var(--green); margin: 48px 0; border-radius: 3px; }
+  .center .rule { margin-left: auto; margin-right: auto; }
+  .index-list { display: grid; gap: 10px; font-size: 40px; }
+  .index-list a { color: inherit; text-decoration: none; padding: 6px 0; }
+  .index-list a span { color: var(--green); display: inline-block; width: 120px; }
+  .guides { position: absolute; inset: 0; pointer-events: none; display: none; }
+  .guides::before, .guides::after { content: ""; position: absolute; left: 0; right: 0; background: rgba(255, 0, 80, .12); }
+  .guides::before { top: 0; height: var(--safe-top); }
+  .guides::after { bottom: 0; height: var(--safe-bottom); }
+  body.show-guides .guides { display: block; }
+  #hint { position: fixed; left: 12px; bottom: 10px; color: #8a8a8a; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="card"></div><div class="guides"></div></div>
+<div id="hint">← / → switch card · G toggles safe-zone guides · add ?actual for 1:1</div>
+
+<script>
+  const LOGO = "../../../public/logo.png"; // the original asset, untouched
+  // Same file either way: from the repo when opened locally, from the running app otherwise.
+  const logo = (w) => `<img class="logo" style="width:${w}px" src="${LOGO}" onerror="this.onerror=null;this.src='http://localhost:3000/logo.png'" alt="Plansphere" />`;
+
+  const chapter = (id, n, title, line, core = true) => ({
+    id,
+    html: `<div class="card"><span class="tag ${core ? "" : "secondary"}">${core ? "Core" : "Also included"}</span><div class="num">${String(n).padStart(2, "0")} / 21</div><h2>${title}</h2><p class="lead">${line}</p></div>`,
+  });
+
+  const cards = [
+    { id: "intro", html: `<div class="card center">${logo(820)}<div class="rule"></div><h1 style="font-size:110px">Every fest.<br/>One pass.</h1><p class="lead" style="text-align:center">The quiet system behind loud, unforgettable events.</p></div>` },
+    { id: "what", html: `<div class="card"><div class="kick">What Plansphere does</div><h2>One platform.<br/>The whole event.</h2><ol class="points"><li><b>Register &amp; Configure</b>A college registers its fest, builds events with solo/team forms, sets pricing and capacity.</li><li><b>Run Live Operations</b>QR check-in at the gate and meals — works offline — volunteer shifts, live scoring.</li><li><b>Results &amp; Certificates</b>Publish results, auto-generate certificates anyone can verify, no login needed.</li></ol></div>` },
+    chapter("c03", 3, "Register your event", "An Event Head registers the organization, the event and themselves — and becomes its Super Admin."),
+    chapter("c04", 4, "Your event is created", "Published, with its own public page, schedule and venues."),
+    chapter("c05", 5, "Super Admin dashboard", "Registrations, check-ins, meals, certificates and revenue — live."),
+    chapter("c06", 6, "Create and manage Admins", "Invite admins for the event; every role is scoped to it."),
+    chapter("c07", 7, "Volunteer management", "Roster volunteers by post, duty and shift."),
+    chapter("c08", 8, "Students discover events", "Search, filter and explore every fest in one place."),
+    chapter("c09", 9, "Register in seconds", "Solo or team — with a join code for teammates."),
+    chapter("c10", 10, "A digital ticket", "Issued instantly, tied to the participant."),
+    chapter("c11", 11, "One QR, many uses", "The same code is the entry pass and the meal coupon."),
+    chapter("c12", 12, "Volunteers scan", "Valid, duplicate and invalid codes — each handled clearly."),
+    chapter("c13", 13, "Attendance, recorded", "Counted once, never twice, with who scanned and when."),
+    chapter("c14", 14, "Food &amp; meals", "Per-person, per-slot — a second helping is refused."),
+    chapter("c15", 15, "Live statistics", "Admins watch the gate and the counters move in real time."),
+    chapter("c16", 16, "Certificates generated", "Prepared by admins, released by the platform owner."),
+    chapter("c17", 17, "Right in the student's account", "Winner, runner-up or participation — ready to share."),
+    chapter("c18", 18, "Public verification", "Anyone can verify a certificate by its number. No login."),
+    chapter("c19", 19, "Explore other events", "Cultural, sports, hackathons and conferences.", false),
+    chapter("c20", 20, "The complete overview", "Analytics, trends and every event at a glance.", false),
+    { id: "closing", html: `<div class="card center dark">${logo(820)}<div class="rule"></div><h1 style="font-size:104px">Plansphere</h1><p class="lead" style="text-align:center">Create. Host. Run every event.</p><p class="lead" style="text-align:center;font-size:44px;margin-top:70px">plansphere.in</p></div>` },
+  ];
+
+  const stage = document.getElementById("stage");
+  const mount = document.getElementById("card");
+  const show = (id) => {
+    if (id === "index") {
+      mount.innerHTML = `<div class="card"><div class="kick">Cards</div><div class="index-list">${cards.map((c, i) => `<a href="#${c.id}"><span>${String(i + 1).padStart(2, "0")}</span>${c.id}</a>`).join("")}</div></div>`;
+      return;
+    }
+    const card = cards.find((c) => c.id === id) || cards[0];
+    mount.innerHTML = card.html;
+    document.querySelector(".card").classList.toggle("dark", card.id === "closing");
+    stage.style.background = card.id === "closing" ? "#101010" : "var(--bg)";
+  };
+  const fit = () => {
+    const actual = location.search.includes("actual");
+    const s = actual ? 1 : Math.min(innerWidth / 1080, innerHeight / 1920);
+    stage.style.transform = `translate(-50%, -50%) scale(${s})`;
+  };
+  const go = (delta) => {
+    const i = Math.max(0, cards.findIndex((c) => c.id === location.hash.slice(1)));
+    location.hash = cards[(i + delta + cards.length) % cards.length].id;
+  };
+  addEventListener("hashchange", () => show(location.hash.slice(1)));
+  addEventListener("resize", fit);
+  addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") go(1);
+    if (e.key === "ArrowLeft") go(-1);
+    if (e.key.toLowerCase() === "g") document.body.classList.toggle("show-guides");
+  });
+  show(location.hash.slice(1) || "intro");
+  fit();
+</script>
+</body>
+</html>
