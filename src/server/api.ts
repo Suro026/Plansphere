@@ -4,7 +4,7 @@ import type { ZodType } from "zod";
 import { decideAccess } from "@/core/access";
 import { memberCeiling, type Membership } from "@/core/models/membership";
 import { PLATFORM_DENIAL_MESSAGES, type PlatformDenial } from "@/core/platform";
-import { USER_ROLES, can, hasAtLeast, type Permission, type UserRole } from "@/core/permissions";
+import { USER_ROLES, can, hasAtLeast, roleWithScope, type Permission, type UserRole } from "@/core/permissions";
 import {
   AdminNotConfiguredError,
   COLLECTIONS,
@@ -67,6 +67,11 @@ export interface Caller {
    * no second factor). `role` and `ceiling` have then already been lowered to what an ordinary account is.
    */
   platformDenied?: PlatformDenial;
+  /**
+   * Set when the account's role says `volunteer` but it holds no fest and no event membership: nothing was ever assigned to
+   * it. `role` and `ceiling` have then been lowered to an ordinary account's (see `roleWithScope`). An admin is never lowered.
+   */
+  unassigned?: true;
   /** True while a temporary password is still in force. */
   mustChangePassword: boolean;
   profileCompleted: boolean;
@@ -161,6 +166,13 @@ export const authenticate = async (request: Request): Promise<Caller> => {
   if (strings(data.memberOf).length > 0) {
     for (const member of await loadActiveMemberships(decoded.uid)) memberships[member.festId] = member;
   }
+  // A volunteer that was never given anything to scan at is not a staff member. A `volunteer` with no legacy fest and no
+  // event membership is an ordinary account here, exactly as the browser shows it. An admin keeps its role: what it may
+  // touch is decided per fest (`festAccess`), so an admin with an empty scope can reach no fest at all.
+  const scopedRole = roleWithScope(role, { festIds, memberFestIds: Object.keys(memberships) });
+  const unassigned = scopedRole !== role;
+  role = scopedRole;
+
   const memberRole = memberCeiling(Object.values(memberships));
   const ceiling: UserRole = memberRole && !hasAtLeast(role, memberRole) ? memberRole : role;
 
@@ -174,13 +186,21 @@ export const authenticate = async (request: Request): Promise<Caller> => {
     memberships,
     tokenClaims: { fm: decoded.fm, fx: decoded.fx, br: decoded.br },
     ...(platformDenied ? { platformDenied } : {}),
+    ...(unassigned ? { unassigned } : {}),
     mustChangePassword: data.mustChangePassword === true,
     profileCompleted: data.profileCompleted === true,
   };
 };
 
 /** The refusal for a caller who is short of a role or permission - says why when the platform boundary is the reason. */
-const refusal = (caller: Caller): ApiError => ApiError.forbidden(caller.platformDenied ? PLATFORM_DENIAL_MESSAGES[caller.platformDenied] : undefined);
+const refusal = (caller: Caller): ApiError =>
+  ApiError.forbidden(
+    caller.platformDenied
+      ? PLATFORM_DENIAL_MESSAGES[caller.platformDenied]
+      : caller.unassigned
+        ? "Your account has not been assigned to an event yet. Ask the event's Super Admin to add you."
+        : undefined,
+  );
 
 /**
  * A temporary password may do exactly one thing: become a real one.

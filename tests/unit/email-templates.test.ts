@@ -19,6 +19,10 @@ const all: Record<string, EmailMessage> = {
   event_cancelled: t.eventCancelledEmail({ to: "a@x.test", recipientName: "Ishita", eventTitle: "CTF", festName: "Bits2Bytes" }),
   payment_due: t.paymentDueEmail({ to: "a@x.test", recipientName: "Ishita", eventTitle: "CTF", festName: "Bits2Bytes", amountLabel: "₹500", holdMinutes: 15, registrationId: "reg1" }),
   announcement: t.announcementEmail({ to: "a@x.test", recipientName: "Ishita", festName: "Bits2Bytes", title: "Venue change", body: "Finals move to <Lab 5> & back." }),
+  application_received: t.applicationReceivedEmail({ to: "a@x.test", recipientName: "Ishita", eventName: "Bits2Bytes 2027" }),
+  application_review_request: t.applicationReviewRequestEmail({ to: "p@x.test", eventName: "Bits2Bytes 2027", organizationName: "Example Institute of Technology", city: "Kolkata" }),
+  application_approved: t.applicationApprovedEmail({ to: "a@x.test", recipientName: "Ishita", eventName: "Bits2Bytes 2027", consoleLink: "https://plansphere.in/admin/bits2bytes-2027" }),
+  application_rejected: t.applicationRejectedEmail({ to: "a@x.test", recipientName: "Ishita", eventName: "Bits2Bytes 2027", reason: "Please add your college website." }),
 };
 
 describe("email templates", () => {
@@ -51,6 +55,16 @@ describe("email templates", () => {
   it("escape user-supplied text in HTML", () => {
     expect(all.announcement!.html).toContain("&lt;Lab 5&gt; &amp; back.");
     expect(all.announcement!.html).not.toContain("<Lab 5>");
+  });
+
+  it("tell the applicant what happens next, and give the reviewer no personal details", () => {
+    expect(all.application_received!.text).toContain("reviews every college event by hand");
+    expect(all.application_received!.text).toContain("/register-event/status");
+    expect(all.application_review_request!.text).toContain("/admin/platform/applications");
+    expect(all.application_review_request!.text).not.toMatch(/@/);
+    expect(all.application_approved!.text).toContain("Event Super Admin");
+    expect(all.application_approved!.text).toContain("this event only");
+    expect(all.application_rejected!.text).toContain("Please add your college website.");
   });
 
   it("phrase team updates by what changed", () => {

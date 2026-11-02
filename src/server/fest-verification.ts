@@ -82,7 +82,7 @@ export const approveApplication = async (festId: string, reviewer: Caller): Prom
       throw ApiError.conflict(state ? `This application is already ${state}.` : "This event was not submitted for review.");
     }
     // One Event Head per event. An application never has an owner yet; if it does, something else got there first.
-    if (data.ownerId) throw ApiError.conflict("This event already has an Event Head.");
+    if (data.ownerId) throw ApiError.conflict("This event already has an Event Super Admin.");
 
     const applicantId = typeof data.createdBy === "string" ? data.createdBy : "";
     if (!applicantId) throw ApiError.unprocessable("This application has no applicant.");

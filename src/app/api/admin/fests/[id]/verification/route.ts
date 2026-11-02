@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ApiError, handler, ok, readBody, requirePermission } from "@/server/api";
-import { approveApplication, rejectApplication } from "@/server/fest-verification";
+import { approveApplication, checkReason, rejectApplication } from "@/server/fest-verification";
+import { noticeApplicationApproved, noticeApplicationRejected } from "@/server/application-notices";
 import { audit } from "@/server/audit";
 import { COLLECTIONS, adminDb } from "@/server/firebase-admin";
 
@@ -37,6 +38,8 @@ export const POST = handler(async (request, context) => {
       subjectId: id,
       details: { applicantId: result.applicantId, festRole: result.festRole },
     });
+    // The applicant is told by email; a failure there is logged and never changes the decision.
+    await noticeApplicationApproved(id, result.applicantId);
     return ok({ festId: id, status: "approved", ownerId: result.applicantId, festRole: result.festRole });
   }
 
@@ -49,5 +52,6 @@ export const POST = handler(async (request, context) => {
     subjectId: id,
     details: { applicantId: result.applicantId },
   });
+  await noticeApplicationRejected(id, result.applicantId, checkReason(input.reason));
   return ok({ festId: id, status: "rejected" });
 });

@@ -25,7 +25,8 @@ export const festRoleSchema = z.enum(FEST_ROLES);
 export type FestRole = z.infer<typeof festRoleSchema>;
 
 export const FEST_ROLE_LABELS: Record<FestRole, string> = {
-  head: "Event Head",
+  // Stored as `head` and kept that way (rules, claims and data all use it); people see it as the Event Super Admin.
+  head: "Event Super Admin",
   admin: "Admin",
   coordinator: "Coordinator",
   volunteer: "Volunteer",
@@ -165,7 +166,9 @@ export const assignMemberSchema = z
     email: z.string().trim().toLowerCase().email().max(254),
     name: z.string().trim().min(1).max(120).optional(),
     role: z.enum(ASSIGNABLE_ROLES),
-    eventIds: z.array(idSchema).min(1, "Assign at least one competition or activity.").max(200),
+    // May be empty: the Event Super Admin can invite someone now and assign their competitions later. A member with no
+    // competitions has no access to any (never "all of them"), so an empty list grants nothing.
+    eventIds: z.array(idSchema).max(200).default([]),
     duties: z.array(dutySchema).max(3).default([]),
   })
   .superRefine((value, ctx) => {

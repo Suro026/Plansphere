@@ -98,8 +98,12 @@ describe("the roles an event can give", () => {
 });
 
 describe("assigning someone", () => {
-  it("needs at least one competition, and a duty for a volunteer but not for anyone else", () => {
-    expect(assignMemberSchema.safeParse({ email: "a@b.co", role: "admin", eventIds: [] }).success).toBe(false);
+  it("needs a duty for a volunteer but not for anyone else; competitions may be assigned later", () => {
+    // Invite now, assign later: an empty list is allowed by the schema and grants access to nothing (the route only lets the
+    // Event Super Admin do it; an admin must name competitions they work on).
+    expect(assignMemberSchema.safeParse({ email: "a@b.co", role: "admin", eventIds: [] }).success).toBe(true);
+    expect(assignMemberSchema.safeParse({ email: "a@b.co", role: "admin" }).success).toBe(true);
+    expect(assignMemberSchema.safeParse({ email: "a@b.co", role: "volunteer", eventIds: [], duties: [] }).success).toBe(false);
     expect(assignMemberSchema.safeParse({ email: "a@b.co", role: "volunteer", eventIds: ["e1"], duties: [] }).success).toBe(false);
     expect(assignMemberSchema.safeParse({ email: "a@b.co", role: "admin", eventIds: ["e1"], duties: ["entry"] }).success).toBe(false);
     expect(assignMemberSchema.safeParse({ email: "a@b.co", role: "volunteer", eventIds: ["e1"], duties: ["entry"] }).success).toBe(true);

@@ -490,3 +490,103 @@ export const announcementEmail = (input: { to: string; recipientName: string; fe
   );
   return { to: input.to, subject: `${input.festName}: ${input.title}`, text, html, template: "announcement", meta: input.meta };
 };
+
+/* ═══════════════════════════ Event application: received / review / decision ═══════════════════════════ */
+
+/** To the applicant, straight after they submit: what happens next, and that nothing is theirs to manage yet. */
+export const applicationReceivedEmail = (input: { to: string; recipientName?: string; eventName: string; meta?: Meta }): EmailMessage => {
+  const name = input.recipientName || "there";
+  const statusLink = `${appUrl()}/register-event/status`;
+  const text = [
+    `Hello ${name},`,
+    "",
+    `We received your application to run "${input.eventName}" on Plansphere.`,
+    "",
+    "The Plansphere team reviews every college event by hand before it goes live. You will get an email as soon as there is a decision. Until then the event is private and nobody can register for it.",
+    "",
+    "Make sure the email address on your account is verified: an application can only be approved once it is.",
+    `Check where it stands any time: ${statusLink}`,
+    ...signoff,
+  ].join("\n");
+  const html = shell(
+    "We received your event application",
+    p(`Hello ${escapeHtml(name)}, we received your application to run <strong>${escapeHtml(input.eventName)}</strong> on Plansphere.`) +
+      p("The Plansphere team reviews every college event by hand before it goes live. You will get an email as soon as there is a decision. Until then the event is private and nobody can register for it.") +
+      small("Make sure the email address on your account is verified: an application can only be approved once it is.") +
+      button(statusLink, "Check application status"),
+  );
+  return { to: input.to, subject: `Application received — ${input.eventName}`, text, html, template: "application_received", meta: input.meta };
+};
+
+/** To a platform reviewer: a new application is waiting. Names the event and college, never the applicant's personal details or documents. */
+export const applicationReviewRequestEmail = (input: { to: string; eventName: string; organizationName: string; city?: string; meta?: Meta }): EmailMessage => {
+  const link = `${appUrl()}/admin/platform/applications`;
+  const text = [
+    "A new college event is waiting for review on Plansphere.",
+    "",
+    ...textRows([
+      ["Event", input.eventName],
+      ["College", input.organizationName],
+      ["City", input.city],
+    ]),
+    "",
+    `Review it: ${link}`,
+    ...signoff,
+  ].join("\n");
+  const html = shell(
+    "A college event needs review",
+    p("A new college event is waiting for review on Plansphere.") +
+      rows([
+        ["Event", input.eventName],
+        ["College", input.organizationName],
+        ["City", input.city],
+      ]) +
+      button(link, "Open applications"),
+  );
+  return { to: input.to, subject: `Review needed — ${input.eventName}`, text, html, template: "application_review_request", meta: input.meta };
+};
+
+/** To the applicant once approved. They are now the Event Super Admin of this one event. */
+export const applicationApprovedEmail = (input: { to: string; recipientName?: string; eventName: string; consoleLink: string; meta?: Meta }): EmailMessage => {
+  const name = input.recipientName || "there";
+  const text = [
+    `Hello ${name},`,
+    "",
+    `"${input.eventName}" is approved. You are now its Event Super Admin: you can create competitions, invite admins, coordinators and volunteers, and manage registrations, attendance and certificates for this event.`,
+    "",
+    `Open your event console: ${input.consoleLink}`,
+    "",
+    "Your access covers this event only.",
+    ...signoff,
+  ].join("\n");
+  const html = shell(
+    "Your event is approved",
+    p(`Hello ${escapeHtml(name)}, <strong>${escapeHtml(input.eventName)}</strong> is approved. You are now its <strong>Event Super Admin</strong>: you can create competitions, invite admins, coordinators and volunteers, and manage registrations, attendance and certificates for this event.`) +
+      button(input.consoleLink, "Open your event console") +
+      small("Your access covers this event only."),
+  );
+  return { to: input.to, subject: `Approved — ${input.eventName}`, text, html, template: "application_approved", meta: input.meta };
+};
+
+/** To the applicant once rejected. `reason` was already screened by the review flow (no personal details). */
+export const applicationRejectedEmail = (input: { to: string; recipientName?: string; eventName: string; reason: string; meta?: Meta }): EmailMessage => {
+  const name = input.recipientName || "there";
+  const statusLink = `${appUrl()}/register-event/status`;
+  const text = [
+    `Hello ${name},`,
+    "",
+    `We could not approve "${input.eventName}" as submitted.`,
+    `Reason: ${input.reason}`,
+    "",
+    `You can see this on your application page and apply again with the corrections: ${statusLink}`,
+    ...signoff,
+  ].join("\n");
+  const html = shell(
+    "Your event was not approved",
+    p(`Hello ${escapeHtml(name)}, we could not approve <strong>${escapeHtml(input.eventName)}</strong> as submitted.`) +
+      rows([["Reason", input.reason]]) +
+      button(statusLink, "View application") +
+      small("You can apply again with the corrections."),
+  );
+  return { to: input.to, subject: `Not approved — ${input.eventName}`, text, html, template: "application_rejected", meta: input.meta };
+};

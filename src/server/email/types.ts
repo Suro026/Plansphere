@@ -33,6 +33,10 @@ export const EMAIL_TEMPLATES = [
   "event_updated",
   "event_cancelled",
   "announcement",
+  "application_received",
+  "application_review_request",
+  "application_approved",
+  "application_rejected",
 ] as const;
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
 

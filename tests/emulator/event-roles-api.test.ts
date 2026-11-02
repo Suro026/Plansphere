@@ -133,7 +133,8 @@ describe("the Event Head assigns the people who work on their event", () => {
   it("insists on a competition of this event, and a duty for a volunteer", async () => {
     const person = await mintUser({ name: "Strict Checks" });
     await profile(person, "student");
-    expect((await assign(head, { email: person.email, role: "admin", eventIds: [] })).status).toBe(400);
+    // Naming no competition is allowed since the invite-now-assign-later change (see event-creator-flow.test.ts); the
+    // member then reaches nothing. What stays refused: a volunteer without a duty, and competitions of another event.
     expect((await assign(head, { email: person.email, role: "volunteer", eventIds: ["ev1"], duties: [] })).status).toBe(400);
     expect((await assign(head, { email: person.email, role: "admin", eventIds: ["ev3"] })).status).toBe(422); // another main event's competition
     expect((await assign(head, { email: person.email, role: "admin", eventIds: ["no-such-event"] })).status).toBe(422);

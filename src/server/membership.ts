@@ -55,7 +55,7 @@ export const managerOf = (caller: Caller, fest: { ownerId?: unknown }, festId: s
   return null;
 };
 
-/** The Event Head's powers: every role, every sub-event. */
+/** The Event Super Admin's powers: every role, every sub-event. */
 const isFestWide = (manager: Manager) => manager === "platform" || manager === "head";
 
 const loadFest = async (festId: string) => {
@@ -79,7 +79,9 @@ const assertEventsBelongToFest = async (festId: string, eventIds: string[]): Pro
  */
 const assertMayGrant = (caller: Caller, manager: Manager, festId: string, role: FestRole, eventIds: string[]): void => {
   if (isFestWide(manager)) return;
-  if (role !== "volunteer") throw ApiError.forbidden("Only the Event Head can assign admins and coordinators.");
+  // Only the Event Super Admin (or the platform) invites without naming a competition; an admin hands out the ones they work on.
+  if (eventIds.length === 0) throw ApiError.forbidden("Pick at least one of the competitions you are assigned to.");
+  if (role !== "volunteer") throw ApiError.forbidden("Only the Event Super Admin can assign admins and coordinators.");
   if (manager === "admin") {
     const own = caller.memberships[festId]?.eventIds ?? [];
     if (!eventIds.every((id) => own.includes(id))) throw ApiError.forbidden("You can only assign volunteers to the competitions you are assigned to yourself.");
@@ -295,14 +297,14 @@ const loadManageable = async (caller: Caller, festId: string, targetUid: string)
   const fest = await loadFest(festId);
   const manager = managerOf(caller, fest, festId);
   if (!manager) throw ApiError.forbidden("You do not manage the people on this event.");
-  if (targetUid === caller.uid) throw ApiError.forbidden("You cannot change your own role. Ask the Event Head.");
+  if (targetUid === caller.uid) throw ApiError.forbidden("You cannot change your own role. Ask the Event Super Admin.");
 
   const snapshot = await memberRef(festId, targetUid).get();
   const member = parseMembership(snapshot.id, snapshot.data());
   if (!member) throw ApiError.notFound("That person has no role on this event.");
-  if (member.role === "head") throw ApiError.forbidden("The Event Head is not changed here. Only the Plansphere team can hand an event over.");
+  if (member.role === "head") throw ApiError.forbidden("The Event Super Admin is not changed here. Only the Plansphere team can hand an event over.");
   if (!isFestWide(manager)) {
-    if (member.role !== "volunteer") throw ApiError.forbidden("Only the Event Head can change admins and coordinators.");
+    if (member.role !== "volunteer") throw ApiError.forbidden("Only the Event Super Admin can change admins and coordinators.");
     const own = manager === "admin" ? (caller.memberships[festId]?.eventIds ?? []) : null;
     if (own && !member.eventIds.some((id) => own.includes(id))) throw ApiError.forbidden("That volunteer is not on any of your competitions.");
   }

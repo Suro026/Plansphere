@@ -66,7 +66,7 @@ export const decideAccess = (
   }
 
   if (!options.permission || !memberCan(member, options.permission)) return { ok: false, reason: "Your role on this event cannot do that." };
-  if (!options.eventId) return { ok: false, reason: "That is an action for the Event Head, not for someone assigned to particular competitions." };
+  if (!options.eventId) return { ok: false, reason: "That is an action for the Event Super Admin, not for someone assigned to particular competitions." };
   if (!member.eventIds.includes(options.eventId)) return { ok: false, reason: "You are not assigned to that competition." };
   return { ok: true };
 };

@@ -6,6 +6,7 @@ import { COLLECTIONS, FieldValue, adminDb } from "@/server/firebase-admin";
 import { compact, docToJson } from "@/server/serialize";
 import { audit } from "@/server/audit";
 import { BUCKETS } from "@/server/storage/client";
+import { noticeApplicationSubmitted } from "@/server/application-notices";
 
 /**
  * Self-service event registration — the one route that lets any signed-in
@@ -28,9 +29,10 @@ import { BUCKETS } from "@/server/storage/client";
  * Rejection leaves them with nothing. Either way `GET /api/register-event`
  * tells them where the application stands.
  *
- * Existing staff are refused outright: a volunteer or admin's role and fest
- * scope belong to whoever gave it to them, and registering must never raise a
- * role or widen a scope. A platform `super_admin` is the platform itself, so
+ * Existing staff may apply with the account they already have. Applying changes nothing about that account: its role,
+ * its legacy fest scope and every event role it holds stay exactly as they are, and approval only ever adds an Event Head
+ * membership on THIS one event (see `src/server/fest-verification.ts`). A volunteer elsewhere is the Event Super Admin
+ * here and a volunteer there. A platform `super_admin` is the platform itself, so
  * there is nobody to review them: their event is recorded as approved by the
  * platform and owned by them, and their role is untouched.
  */
@@ -38,7 +40,7 @@ import { BUCKETS } from "@/server/storage/client";
 /** What the applicant is told, per state. Kept short and free of anything about other people. */
 const APPLICANT_MESSAGE = {
   pending: "Your application is with the Plansphere team. You will be able to manage this event once it is approved.",
-  approved: "Approved. You now run this event. If the console does not open, sign out and back in once.",
+  approved: "Approved. You are now the Event Super Admin of this event. Open the console from your application page.",
   rejected: "This application was not approved.",
   legacy: "",
 } as const;
@@ -58,12 +60,9 @@ export const POST = handler(async (request) => {
   const caller = await authenticate(request);
   requirePasswordChanged(caller);
 
-  // Registering an event must never change what an existing staff account can do. A volunteer or admin's role and fest
-  // scope belong to the people who gave it to them; folding a new fest into it would turn a volunteer into an admin of
-  // the fest they work at, or widen an admin's reach. Such an account registers with a separate one.
-  if (caller.role === "volunteer" || caller.role === "admin") {
-    throw ApiError.forbidden("This account is already staff for another event. Register your event with a separate account, so the access you have now stays exactly as it is.");
-  }
+  // Existing staff (a volunteer or admin of another event) may apply with their own account. Nothing below touches the
+  // account's role, its `festIds` or its event roles, and no authority is granted until a reviewer approves: the
+  // membership created on approval is scoped to this one event and never affects any other.
 
   const input = await readBody(request, registerEventSchema);
 
@@ -151,6 +150,18 @@ export const POST = handler(async (request) => {
     // Names the document's presence, never its path or contents.
     details: { slug, festType: input.festType, organizationName: input.organizationName, organizationType: input.organizationType, hasIdentityDocument: Boolean(idDocumentPath) },
   });
+
+  // The platform's own registration is approved on the spot and needs no review email.
+  if (!platform) {
+    await noticeApplicationSubmitted({
+      festId: ref.id,
+      applicantId: caller.uid,
+      applicantEmail: caller.email,
+      eventName: input.name,
+      organizationName: input.organizationName,
+      city: input.city,
+    });
+  }
 
   const created = await ref.get();
   const fest = docToJson(created);

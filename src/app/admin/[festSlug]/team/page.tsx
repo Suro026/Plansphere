@@ -16,7 +16,7 @@ import { ApiClientError } from "@/data/api-client";
 /**
  * Team - the people who work on this main event, and what each may do.
  *
- * The Event Head assigns admins, coordinators and volunteers to any competition. An admin assigns volunteers to the
+ * The Event Super Admin assigns admins, coordinators and volunteers to any competition. An admin assigns volunteers to the
  * competitions they are assigned to themselves. Nobody changes their own role, and there is no way to add a second Event
  * Head from here: the server enforces all of that, and this screen only offers what the server will accept.
  */
@@ -65,7 +65,7 @@ export default function TeamPage() {
   if (members.isError) {
     return (
       <AdminPage className="py-8">
-        <EmptyState title="You can't manage the team here" body={members.error instanceof ApiClientError ? members.error.message : "Only the Event Head and the admins of a competition can."} />
+        <EmptyState title="You can't manage the team here" body={members.error instanceof ApiClientError ? members.error.message : "Only the Event Super Admin and the admins of a competition can."} />
       </AdminPage>
     );
   }
@@ -204,6 +204,9 @@ const MemberDialog = ({
   const [eventIds, setEventIds] = React.useState<string[]>(member?.eventIds ?? []);
   const [duties, setDuties] = React.useState<Duty[]>(member?.duties ?? []);
 
+  // The Event Super Admin (the only one who can hand out more than volunteer) may invite now and assign competitions later.
+  const mayInviteUnassigned = !editing && roles.length > 1;
+
   const toggle = <T extends string>(list: T[], value: T): T[] => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
   const submit = async (event: React.FormEvent) => {
@@ -251,6 +254,11 @@ const MemberDialog = ({
           <fieldset className="flex flex-col gap-2">
             <Kick>Competitions</Kick>
             {events.length === 0 ? <span className="text-[13px] text-neutral-500">No competitions to assign yet.</span> : null}
+            {mayInviteUnassigned ? (
+              <span className="text-[12.5px] text-neutral-500">
+                You can leave this empty to invite them now and assign competitions later. Until you do, they can sign in but see none.
+              </span>
+            ) : null}
             {events.map((e) => (
               <CheckOption key={e.id} label={e.title} checked={eventIds.includes(e.id)} onChange={() => setEventIds((current) => toggle(current, e.id))} />
             ))}
@@ -267,7 +275,7 @@ const MemberDialog = ({
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={assign.isPending || update.isPending || eventIds.length === 0 || (role === "volunteer" && duties.length === 0)}>
+            <Button type="submit" variant="primary" disabled={assign.isPending || update.isPending || (eventIds.length === 0 && !mayInviteUnassigned) || (role === "volunteer" && duties.length === 0)}>
               {editing ? "Save" : "Add"}
             </Button>
           </DialogActions>

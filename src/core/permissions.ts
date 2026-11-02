@@ -213,6 +213,36 @@ export const creatableRoles = (role: UserRole, isFestOwnerOfTarget = false): Use
 /** Does `uid` own this fest? The one capability an owner has beyond a scoped admin's. */
 export const isFestOwner = (uid: string, fest: { ownerId?: string }): boolean => Boolean(fest.ownerId) && fest.ownerId === uid;
 
+/** What an account has actually been given to run: legacy fests, event memberships, or the right to look memberships up. */
+export interface StaffScope {
+  festIds: readonly string[];
+  memberFestIds?: readonly string[];
+  /** True when the account has too many event roles for its token and the server looks them up instead. */
+  memberLookup?: boolean;
+}
+
+/**
+ * A volunteer is only as real as the roster it was given.
+ *
+ * A volunteer scans at the fests they were given. A volunteer that holds no fest and no event membership has been assigned
+ * nothing - it must not be sent to the staff home or let through a staff gate. It is an ordinary (student) account until
+ * someone explicitly assigns it.
+ *
+ * An admin is NOT lowered, whatever it holds. An admin's reach is already bounded by what it is assigned: `festAccess`
+ * refuses every fest an admin was not given, so an admin with an empty scope can read and change nothing. Lowering its role
+ * would add no protection, and it would silently change the standing of accounts that predate event roles - the migration
+ * of the original `organizers (admin)` accounts left some admins with an empty scope, and they keep the role they were
+ * given. `super_admin` is the platform and is its own scope, so it is never lowered here (the platform boundary decides
+ * that separately).
+ *
+ * The server (`authenticate`) and the browser (`toSession`) both apply this, so the UI and the API cannot disagree.
+ */
+export const roleWithScope = (role: UserRole, scope: StaffScope): UserRole => {
+  if (role !== "volunteer") return role;
+  const assigned = scope.festIds.length > 0 || (scope.memberFestIds?.length ?? 0) > 0 || scope.memberLookup === true;
+  return assigned ? role : "student";
+};
+
 /** Where a signed-in account lands after authenticating. */
 export const homeForRole = (role: UserRole): string => {
   switch (role) {

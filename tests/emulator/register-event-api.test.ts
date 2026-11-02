@@ -176,26 +176,33 @@ const expectNothingCreated = async () => {
   expect((await adminDb().collection(COLLECTIONS.auditLog).get()).size).toBe(0);
 };
 
-describe("registering an event never changes what existing staff can do", () => {
-  it("refuses a volunteer, who must not become an admin of the fest they work at", async () => {
+describe("registering an event never changes what an account can already do", () => {
+  it("lets a volunteer apply with their own account, and changes nothing about what they can do until it is approved", async () => {
     const before = await accessOf(volunteer);
     expect(before).toEqual({ profile: { role: "volunteer", festIds: SEEDED_SCOPE }, claim: { role: "volunteer", festIds: SEEDED_SCOPE } });
 
     const res = await callRoute(registerEvent, { method: "POST", path: "/api/register-event", token: volunteer.idToken, body: validBody("Volunteer Fest") });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
+    expect(res.body.application.status).toBe("pending");
+    // No ownership, no membership, no claim change: the volunteer is exactly what they were.
+    expect(res.body.fest.ownerId).toBeUndefined();
     expect(await accessOf(volunteer)).toEqual(before);
-    await expectNothingCreated();
+    expect((await adminDb().collection(COLLECTIONS.festMembers).get()).size).toBe(0);
+    const stored = (await adminDb().collection(COLLECTIONS.fests).doc(res.body.fest.id).get()).data();
+    expect(stored).toMatchObject({ createdBy: volunteer.uid, verification: { status: "pending" } });
   });
 
-  it("refuses an admin, whose scope must not be widened to another fest", async () => {
+  it("lets an admin apply with their own account, and their existing scope is neither widened nor narrowed", async () => {
     const before = await accessOf(scopedAdmin);
 
     const res = await callRoute(registerEvent, { method: "POST", path: "/api/register-event", token: scopedAdmin.idToken, body: validBody("Second Fest") });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
+    expect(res.body.application.status).toBe("pending");
     expect(await accessOf(scopedAdmin)).toEqual(before);
-    await expectNothingCreated();
+    expect((await accessOf(scopedAdmin)).profile.festIds).not.toContain(res.body.fest.id);
+    expect((await adminDb().collection(COLLECTIONS.festMembers).get()).size).toBe(0);
   });
 
   it("lets a student file more than one application, and none of them grants anything", async () => {
@@ -211,9 +218,13 @@ describe("registering an event never changes what existing staff can do", () => 
     expect((await adminDb().collection(COLLECTIONS.fests).get()).size).toBe(2);
   });
 
-  it("answers staff the same way whatever they send, so a malformed body cannot probe for anything", async () => {
-    const res = await callRoute(registerEvent, { method: "POST", path: "/api/register-event", token: volunteer.idToken, body: { name: "" } });
-    expect(res.status).toBe(403);
+  it("validates staff and students alike, so a malformed body reveals nothing about the account", async () => {
+    const asStaff = await callRoute(registerEvent, { method: "POST", path: "/api/register-event", token: volunteer.idToken, body: { name: "" } });
+    const asStudent = await callRoute(registerEvent, { method: "POST", path: "/api/register-event", token: student.idToken, body: { name: "" } });
+    expect(asStaff.status).toBe(asStudent.status);
+    expect(asStaff.status).toBeGreaterThanOrEqual(400);
+    expect(asStaff.status).toBeLessThan(500);
+    await expectNothingCreated();
   });
 
   it("leaves a student's access alone, including a stale scope on their profile, and never merges the new event into it", async () => {

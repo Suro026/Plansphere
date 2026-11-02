@@ -13,6 +13,7 @@ import {
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { USER_ROLES, type UserRole } from "@/core/models/user";
+import { roleWithScope } from "@/core/permissions";
 import { AuthError, type AuthErrorCode, type AuthService, type Session } from "@/core/services/auth-service";
 import { firebaseAuth } from "./client";
 import { api } from "@/data/api-client";
@@ -57,21 +58,28 @@ const roleFromClaim = (value: unknown): UserRole =>
       ? (value as UserRole)
       : "student";
 
-const toSession = async (user: FirebaseUser, forceRefresh = false): Promise<Session> => {
+export const toSession = async (user: FirebaseUser, forceRefresh = false): Promise<Session> => {
   const token = await user.getIdTokenResult(forceRefresh);
   const festIds = Array.isArray(token.claims.festIds)
     ? (token.claims.festIds as unknown[]).filter((id): id is string => typeof id === "string")
     : [];
+
+  const memberLookup = token.claims.fx === true;
+  const memberFestIds = Array.isArray(token.claims.fm) ? (token.claims.fm as unknown[]).filter((id): id is string => typeof id === "string") : [];
 
   return {
     uid: user.uid,
     email: (user.email ?? "").toLowerCase(),
     emailVerified: user.emailVerified,
     displayName: user.displayName,
-    role: roleFromClaim(token.claims.role),
+    // A volunteer means something only together with a fest or an event role to scan at: one that has the role and nothing
+    // else is an ordinary account and lands in the Student section. An admin keeps its role - what it may touch is decided
+    // per fest. The server applies the same rule to every request (`authenticate`), so this is the same answer, not a
+    // second opinion.
+    role: roleWithScope(roleFromClaim(token.claims.role), { festIds, memberFestIds, memberLookup }),
     festIds,
-    memberLookup: token.claims.fx === true,
-    memberFestIds: Array.isArray(token.claims.fm) ? (token.claims.fm as unknown[]).filter((id): id is string => typeof id === "string") : [],
+    memberLookup,
+    memberFestIds,
     mustChangePassword: token.claims.mustChangePassword === true,
   };
 };
