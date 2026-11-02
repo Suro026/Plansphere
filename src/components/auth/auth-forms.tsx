@@ -96,10 +96,13 @@ export const SignInForm = ({ audience, next }: { audience: "student" | "organize
           .
         </p>
       ) : (
-        <Note title="Organizer and volunteer accounts are created for you">
-          Admins and super admins are set up by a super admin; volunteers by their fest&apos;s admin. You will get an
-          email with a link and a temporary password, and you will be asked to choose your own the first time you sign
-          in. There is no organizer sign-up.
+        <Note title="Two ways onto an event team">
+          Invited as an admin, coordinator or volunteer? The Event Super Admin of that event sent you an email with a link and a
+          temporary password; you choose your own the first time you sign in. Running the event yourself?{" "}
+          <Link href="/register-event" className="text-accent-300">
+            Create a College Event
+          </Link>{" "}
+          — no invitation needed. The Plansphere team reviews it, and once approved you are its Event Super Admin.
         </Note>
       )}
     </form>

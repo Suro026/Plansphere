@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/providers";
 import { AuthHeading } from "@/components/auth/auth-heading";
@@ -12,11 +13,16 @@ import { safeRedirect } from "@/lib/utils";
 /**
  * The single authentication page.
  *
- * One system, one URL: students, volunteers, admins and super admins all
- * sign in through the same form against the same endpoint. The tabs change
- * the copy and — for "Create account" — the form, never the mechanism. There
- * is deliberately no organizer sign-up: those accounts are created by a super
- * admin (admins) or an admin (volunteers) and arrive by email.
+ * One system, one URL: students, event teams and the platform team all sign in
+ * through the same form against the same endpoint. The tabs change the copy
+ * and — for "Create account" — the form, never the mechanism.
+ *
+ * Anyone can create an account here. Running your own college event is a
+ * separate step, "Create a College Event" (/register-event), offered on every
+ * tab and never gated behind an invitation. Invited team members (admins,
+ * coordinators, volunteers) arrive by email and use the Organizer tab. Neither
+ * path grants anything platform-wide: an event's creator becomes the Event
+ * Super Admin of that one event once the Plansphere team approves it.
  *
  * Where you land afterwards comes from the claim on your token, not from the
  * tab you chose.
@@ -38,14 +44,14 @@ const COPY: Record<Tab, { kick: string; title: string; sub: string }> = {
     sub: "Your passes, teams and certificates are here. New to Plansphere? Create an account — it takes a minute.",
   },
   organizer: {
-    kick: "Organizers & volunteers",
+    kick: "Event teams",
     title: "Sign in",
-    sub: "The same sign-in as everyone else. Use the email your fest's admin invited you with.",
+    sub: "For Event Super Admins, admins, coordinators and volunteers. Invited to a team? Use the email the invitation was sent to.",
   },
   create: {
-    kick: "Students",
+    kick: "New to Plansphere",
     title: "Create your account",
-    sub: "One account for every fest you attend. Tickets, meal slots and certificates all land here.",
+    sub: "One account for everything: tickets, meal slots and certificates as a student, and the account you use to create a College Event.",
   },
   forgot: {
     kick: "Account",
@@ -55,6 +61,24 @@ const COPY: Record<Tab, { kick: string; title: string; sub: string }> = {
 };
 
 const isTab = (value: string | null): value is Tab => TABS.some((t) => t.value === value);
+
+/**
+ * The way in for someone who wants to run their own event. Offered on every tab so event creation is never
+ * only reachable through an organizer login. The destination handles signed-out visitors itself and returns them to
+ * the application after they sign in or create an account.
+ */
+const CreateEventEntry = () => (
+  <aside className="mt-8 border-t border-divider pt-6" aria-label="Create a College Event">
+    <p className="mb-1 text-[11px] uppercase tracking-[0.14em] text-neutral-500">Running a college event?</p>
+    <p className="mb-3 text-[13.5px] leading-relaxed text-neutral-400">
+      Tech fest, cultural fest, sports meet or conference — create it yourself. The Plansphere team reviews each application before the event goes live, and once it is
+      approved you run it as its Event Super Admin.
+    </p>
+    <Link href="/register-event" className="btn btn-secondary">
+      Create a College Event
+    </Link>
+  </aside>
+);
 
 export default function AuthPage() {
   const { status, session, profile } = useAuth();
@@ -105,6 +129,8 @@ export default function AuthPage() {
       ) : (
         <SignInForm audience={tab} next={next} />
       )}
+
+      {tab === "forgot" ? null : <CreateEventEntry />}
     </>
   );
 }

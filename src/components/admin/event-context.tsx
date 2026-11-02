@@ -26,7 +26,7 @@ export const useAdminEvent = (): EventContextValue => {
 };
 
 /**
- * May this person open this competition's pages? The Event Head and anyone on the older fest-wide scope may; an admin,
+ * May this person open this competition's pages? The Event Super Admin and anyone on the older fest-wide scope may; an admin,
  * coordinator or volunteer by event role may only open the competitions they are assigned to. The server and the rules
  * already refuse the rest - this keeps the screen from presenting a competition's empty-looking controls (export, manual
  * entry) to someone who is not assigned to it.
@@ -80,7 +80,7 @@ export const EventProvider = ({ eventSlug, children }: { eventSlug: string; chil
       <div className="mx-auto w-full max-w-[720px] px-5 py-16">
         <EmptyState
           title="You're not assigned to this competition"
-          body="You can work on the competitions the Event Head has assigned to you. Ask them if you need access to this one."
+          body="You can work on the competitions the Event Super Admin has assigned to you. Ask them if you need access to this one."
           action={
             <Button asChild variant="primary">
               <Link href={`${basePath}/events`}>Your events</Link>

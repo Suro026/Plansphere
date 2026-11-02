@@ -10,12 +10,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * The Event Head pitch the landing page and footer link to. Registering is
- * self-service from here: `/register-event` creates the fest immediately and
- * makes the registrant its admin on the spot — no email, no waiting on
- * Plansphere. Staff beyond that first admin (more admins, volunteers) stays
- * invitation-only, issued from inside the admin console, so an audit log can
- * still stand behind every account above student.
+ * The pitch the landing page and footer link to. Creating a college event is
+ * self-service from here: `/register-event` takes the application, the
+ * Plansphere team verifies the institution, and on approval the applicant
+ * becomes the Event Super Admin of that one event. Staff beyond that first
+ * admin (more admins, coordinators, volunteers) are invited from inside the
+ * event console, so an audit log stands behind every account on the event.
  */
 export default function ForCollegesPage() {
   return (
@@ -28,20 +28,20 @@ export default function ForCollegesPage() {
             [ for colleges ]
           </span>
           <h1 className="mb-5 text-[38px] leading-[0.96] tracking-[-0.03em] sm:text-[58px] sm:leading-[0.9] sm:tracking-[-0.035em]">
-            Register your event.
+            Create your college event.
             <br />
-            You&apos;re already <em className="text-emphasis text-accent not-italic sm:italic">in charge.</em>
+            Then <em className="text-emphasis text-accent not-italic sm:italic">run it.</em>
           </h1>
           <div className="mb-6 flex flex-wrap gap-2">
-            <Tag tone="neutral">Register instantly — no approval queue</Tag>
+            <Tag tone="neutral">Reviewed by the Plansphere team before it goes live</Tag>
           </div>
           <p className="mb-[26px] max-w-[520px] text-[16px] text-neutral-400 sm:text-[17px]">
-            The moment you register, you&apos;re its admin — build your team, open registrations, run the gate and meals offline, and publish results that turn
-            into verifiable certificates.
+            Tech fest, cultural fest, sports meet or conference: apply with your college and event details. Once the Plansphere team verifies it you are its Event Super Admin —
+            build your team, open registrations, run the gate and meals offline, and publish results that turn into verifiable certificates.
           </p>
           <div className="flex flex-wrap gap-2.5">
             <Link href="/register-event" className="btn btn-primary btn-lg">
-              Register Your Event
+              Create a College Event
             </Link>
             <Link href="/explore" className="btn btn-secondary btn-lg">
               See fests already running
@@ -95,21 +95,22 @@ export default function ForCollegesPage() {
           <Kick className="mb-3">Who does what</Kick>
           <MetaList>
             <MetaRow label="Platform super admin">Runs Plansphere itself. Not scoped to any one event — sees the whole platform.</MetaRow>
-            <MetaRow label="You, the Event Head">Register the event and you're its admin from that second — no request, no wait.</MetaRow>
-            <MetaRow label="Admin(s)">Whoever you add to run it with you — Registration, Sports, Cultural, Finance, however you split it.</MetaRow>
+            <MetaRow label="You, the Event Super Admin">Create the event; once the Plansphere team approves it you run it — competitions, team, registrations, certificates. Your access covers this event only.</MetaRow>
+            <MetaRow label="Admin(s) and coordinators">Whoever you invite to run parts of it — each works only on the competitions you assign.</MetaRow>
             <MetaRow label="Volunteer(s)">Scans entry and meals, or runs the live scoreboard at the posts they're rostered on — nothing more.</MetaRow>
             <MetaRow label="Student(s)">Registers, holds the pass, collects certificates. Self-serve sign-up.</MetaRow>
           </MetaList>
           <div className="mt-4 max-w-[52ch] text-[12.5px] text-neutral-500">
-            Registering is the one self-service step. Every account above it — more admins, volunteers — is invited from inside your own admin console, so
-            an audit log still stands behind every action taken on your event.
+            Creating the event is self-service; approval is a manual check by the Plansphere team. Every account on your team — admins, coordinators,
+            volunteers — is invited from inside your own event console, so an audit log stands behind every action taken on your event.
           </div>
         </div>
         <div>
           <Kick className="mb-3">Getting started</Kick>
           <Timeline>
-            <TimelineItem title={<><span className="text-neutral-500">Now · </span>Register your event</>} meta="Name it, pick its dates, say what it is. Takes minutes — nothing is reviewed before it goes live." />
-            <TimelineItem title={<><span className="text-neutral-500">Same second · </span>You're its admin</>} meta="No invitation link to wait on. The same account that registered the event now runs it." />
+            <TimelineItem title={<><span className="text-neutral-500">Now · </span>Create your college event</>} meta="Create an account, tell us about your college and the event. Takes minutes." />
+            <TimelineItem title={<><span className="text-neutral-500">Review · </span>The Plansphere team verifies it</>} meta="Every application is checked by hand and your email address must be verified. The event stays private until then. You are emailed the decision." />
+            <TimelineItem title={<><span className="text-neutral-500">Approved · </span>You are the Event Super Admin</>} meta="No second account needed: the one you applied with now runs the event. Add competitions and invite your admins, coordinators and volunteers." />
             <TimelineItem title={<><span className="text-neutral-500">Same day · </span>Add events, invite your team</>} meta="Build the lineup, add other admins and volunteers from the Staff page, and preview every event exactly as students will see it." />
             <TimelineItem title={<><span className="text-neutral-500">Launch · </span>Publish</>} meta="The fest appears on Explore and registrations open on schedule. Live counts are on your dashboard from the first sign-up." />
           </Timeline>
@@ -120,11 +121,11 @@ export default function ForCollegesPage() {
       <section className="bg-grid-lines bg-accent-fill text-text">
         <div className="mx-auto flex w-full max-w-[860px] flex-col items-center gap-5 px-[18px] py-14 text-center sm:px-6 lg:py-20">
           <p className="text-[28px] leading-[0.98] tracking-[-0.03em] sm:text-[40px] sm:leading-[0.94] sm:tracking-[-0.035em]">
-            No queue. No waiting. <em className="text-emphasis">Just register.</em>
+            Apply once. <em className="text-emphasis">Run your whole event.</em>
           </p>
           <div className="mt-1 flex flex-wrap items-center justify-center gap-x-7 gap-y-3">
             <Link href="/register-event" className="btn btn-primary btn-lg">
-              Register Your Event
+              Create a College Event
             </Link>
             <Link href="/explore" className="btn btn-secondary btn-lg">
               See fests already running

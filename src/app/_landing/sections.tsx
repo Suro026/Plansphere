@@ -97,7 +97,7 @@ export function EventsSection({ items }: { items: HomeFest[] | null }) {
               <strong>No events are listed yet</strong>
               <span>Published fests show up here with their dates and a link to register. Running one? Register it and it appears on this page.</span>
               <Link href="/register-event" className="action-button">
-                <span>Register Your Event</span>
+                <span>Create a College Event</span>
                 <ArrowUpRight size={15} />
               </Link>
             </div>
@@ -136,7 +136,7 @@ export function FlowSection() {
             badgeColor="#50675b"
             title="Register the event"
             description="Create your fest, add events and set up registration forms."
-            ctaText="Register Your Event"
+            ctaText="Create a College Event"
             ctaHref="/register-event"
             icon={<Users strokeWidth={1.25} />}
           />

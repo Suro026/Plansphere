@@ -21,7 +21,7 @@ export default function NotFound() {
             Explore Events
           </Link>
           <Link href="/register-event" className="btn btn-secondary">
-            Register Your Event
+            Create a College Event
           </Link>
           <Link href="/" className="btn btn-ghost">
             Return home

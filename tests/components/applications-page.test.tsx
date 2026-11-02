@@ -63,7 +63,7 @@ describe("Applications (platform reviewer)", () => {
     renderPage();
     await screen.findByText("Verified Fest");
     fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[0]!);
-    expect(await screen.findByText(/becomes the Event Head of this event, and only this event/)).toBeInTheDocument();
+    expect(await screen.findByText(/becomes the Event Super Admin of this event, and only this event/)).toBeInTheDocument();
     expect(calls.some((c) => c.init?.method === "POST")).toBe(false); // nothing sent yet
     fireEvent.click(screen.getAllByRole("button", { name: "Approve" }).at(-1)!);
     await waitFor(() => expect(calls.some((c) => c.path === "/api/admin/fests/f1/verification" && c.init?.method === "POST")).toBe(true));

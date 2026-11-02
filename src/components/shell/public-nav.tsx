@@ -16,7 +16,7 @@ import { WordmarkOrb } from "./wordmark-orb";
  * graph statically. Keeping the homepage's nav out of this file means the
  * other ~15 pages that use `PublicNav` carry none of that weight.
  */
-export const PublicNav = ({ active }: { active?: "fests" | "colleges" | "verify" | "live" }) => (
+export const PublicNav = ({ active }: { active?: "fests" | "colleges" | "create" | "verify" | "live" }) => (
   <header className="sticky top-0 z-40 border-b border-divider bg-bg/85 backdrop-blur-md">
     <nav className="nav mx-auto w-full max-w-[1180px] gap-[26px] px-[18px] py-4 sm:px-6 lg:px-10 lg:py-5" aria-label="Primary">
       <Brand href="/" />
@@ -28,6 +28,9 @@ export const PublicNav = ({ active }: { active?: "fests" | "colleges" | "verify"
       </Link>
       <Link href="/for-colleges" aria-current={active === "colleges" ? "page" : undefined} className="hidden sm:inline">
         For colleges
+      </Link>
+      <Link href="/register-event" aria-current={active === "create" ? "page" : undefined} className="hidden lg:inline">
+        Create a College Event
       </Link>
       <Link href="/verify" aria-current={active === "verify" ? "page" : undefined} className="hidden md:inline">
         Verify a certificate

@@ -52,7 +52,8 @@ import { MachineHeroLoader } from "./machine-hero-loader";
 
 const navItems = [
   { label: "Explore events", href: "/explore" },
-  { label: "For organizers", href: "/for-colleges" },
+  { label: "For colleges", href: "/for-colleges" },
+  { label: "Create a College Event", href: "/register-event" },
   { label: "How it works", href: "#flow" },
 ] as const;
 
@@ -220,8 +221,8 @@ export function LandingExperience({
             </p>
             <div className="minimal-hero-actions">
               <div className="hero-path">
-                <Action href="/register-event">Register Your Event</Action>
-                <span className="hero-path-note">For organizers: create and manage your fest.</span>
+                <Action href="/register-event">Create a College Event</Action>
+                <span className="hero-path-note">For organizers: create your college event and run it end to end.</span>
               </div>
               <div className="hero-path">
                 <Action href="/explore" outline>

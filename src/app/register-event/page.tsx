@@ -58,11 +58,16 @@ const Gate = () => {
 
   if (status === "signed-out" || !session) {
     return (
-      <Note title="Sign in to register your event">
-        One account for everything on Plansphere — sign in, or create one in a minute, and you&apos;ll land right back here.
-        <div className="mt-3.5">
+      <Note title="Create an account to start your College Event">
+        One account for everything on Plansphere. Create one in a minute or sign in with the one you have — students, admins and volunteers can all apply
+        — and you&apos;ll land right back on this application. The Plansphere team reviews every event before it goes live; once it is approved you run it as
+        its Event Super Admin.
+        <div className="mt-3.5 flex flex-wrap gap-2">
           <Button asChild variant="primary">
-            <Link href="/sign-in?next=/register-event">Sign in or create an account</Link>
+            <Link href="/sign-in?tab=create&next=/register-event">Create an account</Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href="/sign-in?next=/register-event">Sign in</Link>
           </Button>
         </div>
       </Note>

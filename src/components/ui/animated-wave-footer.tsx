@@ -26,7 +26,7 @@ const students = [
 ] as const;
 
 const organizers = [
-  { href: "/register-event", label: "Register your event" },
+  { href: "/register-event", label: "Create a College Event" },
   { href: "/for-colleges", label: "For colleges" },
   { href: "/sign-in", label: "Sign in" },
   { href: "/create-account", label: "Create account" },
@@ -75,7 +75,7 @@ export default function AnimatedWaveFooter({ actions }: { actions?: React.ReactN
             <p className="mt-4 max-w-[330px] text-[13px] leading-[1.65] text-neutral-300">{SITE.description}</p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/register-event" className="action-button">
-                <span>Register Your Event</span>
+                <span>Create a College Event</span>
                 <ArrowUpRight size={15} aria-hidden="true" />
               </Link>
               <Link href="/explore" className="action-button action-outline">

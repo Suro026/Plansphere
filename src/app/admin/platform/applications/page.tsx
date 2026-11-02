@@ -40,7 +40,7 @@ export default function ApplicationsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-5 py-8 lg:px-8">
-      <PageHeading kick="Applications" title="Who may run an event" sub="Approve an application to make the applicant the Event Head of that one event. Rejecting records a reason they can read." />
+      <PageHeading kick="Applications" title="Who may run an event" sub="Approve an application to make the applicant the Event Super Admin of that one event. Rejecting records a reason they can read." />
 
       <div className="mt-5">
         <Seg
@@ -114,7 +114,7 @@ export default function ApplicationsPage() {
         {approving ? (
           <AlertDialogContent
             title={`Approve ${approving.name}?`}
-            description={`${approving.applicant.name || "The applicant"} becomes the Event Head of this event, and only this event. You can't undo it from here.`}
+            description={`${approving.applicant.name || "The applicant"} becomes the Event Super Admin of this event, and only this event. You can't undo it from here.`}
             confirmLabel="Approve"
             loading={decide.isPending}
             onConfirm={async () => {

@@ -49,6 +49,9 @@ const Applications = () => {
     queryKey: ["register-event", "applications", session?.uid],
     enabled: Boolean(session),
     queryFn: () => api<{ applications: Application[]; emailVerified?: boolean }>("/api/register-event"),
+    // While anything is waiting, look again every half minute: the decision appears here without a reload, and the
+    // button below opens the console without signing out and in.
+    refetchInterval: (q) => (q.state.data?.applications.some((application) => application.status === "pending") ? 30_000 : false),
   });
 
   if (status === "loading") return <Skeleton className="h-40" />;
@@ -109,8 +112,11 @@ const Applications = () => {
               <Button
                 variant="primary"
                 onClick={async () => {
-                  // The approval changed this account's role on the server; the token this browser holds predates it.
-                  await auth.getIdToken(true);
+                  // The approval changed this account's access on the server; the token this browser holds predates it.
+                  // Ask the server to bring the claims in step (idempotent), then fetch a fresh token. Either failing
+                  // is not fatal - the console reads the membership live - so the visit goes ahead regardless.
+                  await api("/api/me/access").catch(() => null);
+                  await auth.getIdToken(true).catch(() => null);
                   window.location.assign(`/admin/${application.slug}/overview`);
                 }}
               >
