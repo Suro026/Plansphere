@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ApiError } from "../errors";
 import { BUCKETS, isPublicBucket, supabaseAdmin, type BucketName } from "./client";
+import { guardStorage } from "./guard";
 import { createSignedUrl, DEFAULT_SIGNED_URL_TTL_SECONDS } from "./signed-url";
 import { describeRejectedType, EXTENSION, processImage, sniffType, type DetectedType } from "./image";
 
@@ -128,34 +129,30 @@ export const storeUpload = async (
   contentType: string,
   meta: { uploadedBy: string; kind: UploadKind | "certificatePdf"; width?: number; height?: number },
 ): Promise<StoredUpload> => {
-  const client = supabaseAdmin();
   const sha256 = createHash("sha256").update(bytes).digest("hex");
 
-  const { error } = await client.storage.from(bucket).upload(path, bytes, {
-    contentType,
-    // Supabase's cacheControl is the max-age in seconds, not a full header
-    // string — one year, matching the immutable-forever intent of a
-    // randomly-named object that is never overwritten.
-    cacheControl: `${365 * 24 * 60 * 60}`,
-    upsert: false,
-    metadata: {
-      uploadedBy: meta.uploadedBy,
-      kind: meta.kind,
-      sha256,
-      ...(meta.width ? { width: String(meta.width), height: String(meta.height) } : {}),
-    },
+  // Any failure here is a storage outage or a deployment gap, never a bug in the request: it leaves as a 503 with a fixed
+  // message (see ./guard.ts), not as the generic 500 an unrecognised error becomes.
+  const url = await guardStorage("upload", bucket, async () => {
+    const client = supabaseAdmin();
+    const { error } = await client.storage.from(bucket).upload(path, bytes, {
+      contentType,
+      // Supabase's cacheControl is the max-age in seconds, not a full header
+      // string — one year, matching the immutable-forever intent of a
+      // randomly-named object that is never overwritten.
+      cacheControl: `${365 * 24 * 60 * 60}`,
+      upsert: false,
+      metadata: {
+        uploadedBy: meta.uploadedBy,
+        kind: meta.kind,
+        sha256,
+        ...(meta.width ? { width: String(meta.width), height: String(meta.height) } : {}),
+      },
+    });
+    if (error) throw error;
+
+    return isPublicBucket(bucket) ? client.storage.from(bucket).getPublicUrl(path).data.publicUrl : await createSignedUrl(bucket, path, DEFAULT_SIGNED_URL_TTL_SECONDS);
   });
-
-  if (error) {
-    // A missing bucket (never created in the Supabase dashboard) is a
-    // deployment gap, not a bug: say so instead of a generic 500.
-    if (/bucket.*not.*found/i.test(error.message)) {
-      throw ApiError.unavailable("Image uploads aren’t enabled on this deployment yet. Paste an https:// image URL instead, or ask the platform admin to create the storage buckets.");
-    }
-    throw error;
-  }
-
-  const url = isPublicBucket(bucket) ? client.storage.from(bucket).getPublicUrl(path).data.publicUrl : await createSignedUrl(bucket, path, DEFAULT_SIGNED_URL_TTL_SECONDS);
 
   return {
     bucket,

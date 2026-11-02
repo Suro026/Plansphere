@@ -18,6 +18,7 @@
     "migrate:accounts": "node --env-file=.env.local scripts/migrate-accounts.mjs",
     "inspect:accounts": "node --env-file=.env.local scripts/inspect-accounts.mjs",
     "verify:infra": "node --env-file=.env.local scripts/verify-infra.mjs",
+    "verify:storage": "node --env-file-if-exists=.env.local scripts/verify-storage.mjs",
     "test": "vitest run --project unit --file-parallelism",
     "test:watch": "vitest --project unit --file-parallelism",
     "test:emulator": "npx firebase-tools@15 emulators:exec --only firestore,auth --project plansphere-test \"vitest run --project emulator\"",

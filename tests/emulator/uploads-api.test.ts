@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { adminDb, COLLECTIONS } from "@/server/firebase-admin";
 import { mintUser, resetAuth, resetFirestore, seedFest, type TestUser } from "./harness";
 
@@ -14,9 +14,19 @@ import { mintUser, resetAuth, resetFirestore, seedFest, type TestUser } from "./
  * in src/server/storage/{image,upload}.ts, just against a fake backend.
  */
 
-const { fakeObjects, resetFakeStorage } = vi.hoisted(() => {
+const { fakeObjects, fakeFailure, resetFakeStorage } = vi.hoisted(() => {
   const objects = new Map<string, { bytes: Buffer; contentType: string; metadata: Record<string, string> }>();
-  return { fakeObjects: objects, resetFakeStorage: () => objects.clear() };
+  /** What the next `upload` does instead of storing: a Supabase error, or a throw (as when storage is not configured). */
+  const failure: { error: null | { name?: string; message: string; status?: number }; throws: null | Error } = { error: null, throws: null };
+  return {
+    fakeObjects: objects,
+    fakeFailure: failure,
+    resetFakeStorage: () => {
+      objects.clear();
+      failure.error = null;
+      failure.throws = null;
+    },
+  };
 });
 
 vi.mock("@/server/storage/client", () => {
@@ -26,6 +36,8 @@ vi.mock("@/server/storage/client", () => {
 
   const from = (bucket: string) => ({
     upload: async (path: string, bytes: Buffer, options: { contentType: string; metadata?: Record<string, string> }) => {
+      if (fakeFailure.throws) throw fakeFailure.throws;
+      if (fakeFailure.error) return { data: null, error: fakeFailure.error };
       fakeObjects.set(`${bucket}/${path}`, { bytes: Buffer.from(bytes), contentType: options.contentType, metadata: options.metadata ?? {} });
       return { data: { path, id: path, fullPath: `${bucket}/${path}` }, error: null };
     },
@@ -227,5 +239,70 @@ describe("what is stored", () => {
 
     const auditRows = await adminDb().collection(COLLECTIONS.auditLog).where("action", "==", "file_uploaded").get();
     expect(auditRows.size).toBe(1);
+  });
+});
+
+describe("when file storage fails", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const png1 = () => png(32, 32);
+  const notStored = () => expect(fakeObjects.size).toBe(0);
+
+  it("answers a rejected storage key with a 503, not a 500, and says nothing about the key or the project", async () => {
+    fakeFailure.error = { name: "StorageApiError", message: "Invalid API key for https://abcdefghijklmnop.supabase.co", status: 401 };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = await send(admin, "kind=festBanner&id=fest1", { bytes: await png1(), name: "b.png", type: "image/png" });
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("storage-unavailable");
+    expect(JSON.stringify(res.body)).not.toMatch(/supabase|abcdefghijklmnop|api key/i);
+    notStored();
+  });
+
+  it("answers an unconfigured deployment with a 503 that tells the user what to do instead", async () => {
+    fakeFailure.throws = Object.assign(new Error("Supabase Storage is not configured: SUPABASE_URL is empty."), { name: "StorageNotConfiguredError" });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = await send(student, "kind=profilePhoto", { bytes: await png1(), name: "me.png", type: "image/png" });
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("storage-disabled");
+    expect(String(res.body.error)).toContain("Paste an https:// image URL");
+    expect(JSON.stringify(res.body)).not.toMatch(/SUPABASE|SERVICE_ROLE/);
+  });
+
+  it("answers a missing bucket with the same deliberate 503", async () => {
+    fakeFailure.error = { name: "StorageApiError", message: "Bucket not found", status: 404 };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = await send(admin, "kind=eventPoster&id=fest1", { bytes: await png1(), name: "p.png", type: "image/png" });
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("storage-disabled");
+  });
+
+  it("writes no audit record for an upload that did not happen", async () => {
+    fakeFailure.error = { name: "StorageApiError", message: "Internal Server Error", status: 500 };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = await send(admin, "kind=festBanner&id=fest1", { bytes: await png1(), name: "b.png", type: "image/png" });
+    expect(res.status).toBe(503);
+    expect((await adminDb().collection(COLLECTIONS.auditLog).where("action", "==", "file_uploaded").get()).size).toBe(0);
+  });
+
+  it("still refuses a bad file with its own error while storage is down: validation runs before storage is touched", async () => {
+    fakeFailure.error = { name: "StorageApiError", message: "Internal Server Error", status: 500 };
+    const exe = Buffer.concat([Buffer.from("MZ"), Buffer.alloc(200, 1)]);
+    const res = await send(admin, "kind=festBanner&id=fest1", { bytes: exe, name: "x.png", type: "image/png" });
+    expect(res.status).toBe(415);
+  });
+
+  it("keeps authentication and authorisation in front of storage while it is down", async () => {
+    fakeFailure.error = { name: "StorageApiError", message: "Internal Server Error", status: 500 };
+    expect((await send(null, "kind=festBanner&id=fest1", { bytes: await png1(), name: "b.png", type: "image/png" })).status).toBe(401);
+    expect((await send(student, "kind=festBanner&id=fest1", { bytes: await png1(), name: "b.png", type: "image/png" })).status).toBe(403);
+  });
+
+  it("recovers: the next upload succeeds as soon as storage does", async () => {
+    fakeFailure.error = { name: "StorageApiError", message: "Internal Server Error", status: 500 };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect((await send(admin, "kind=festBanner&id=fest1", { bytes: await png1(), name: "b.png", type: "image/png" })).status).toBe(503);
+    fakeFailure.error = null;
+    const ok = await send(admin, "kind=festBanner&id=fest1", { bytes: await png1(), name: "b.png", type: "image/png" });
+    expect(ok.status).toBe(201);
+    expect(fakeObjects.size).toBe(1);
   });
 });

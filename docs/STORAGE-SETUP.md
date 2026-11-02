@@ -98,6 +98,43 @@ not been established** — the local environment has no Supabase variables, and 
 above exists so the next look at `/admin/health` names the cause directly. Fix what it names, redeploy, and expect `/api/health`
 to return 200.
 
+**Update (Phase 19).** The first deployment of this code returned 503 from `/api/health` on the storage check alone, although the previous
+deployment passed it (30 Oct 2026, 19:10 UTC). The client code is the same apart from value cleaning; the check now lists the buckets once and also verifies each bucket's visibility, instead of
+fetching each by name. The most likely cause is in what the new deployment reads rather than the code: the two Supabase variables were last changed
+on 29 Oct, after the previous deployment was built, and a deployment keeps the environment it was built with, so this was the first deployment to use them.
+This has not been proven, because the values cannot be read (they are Vercel "sensitive" variables).
+Keyless probes showed the project running, `event-assets` and `avatars` present and public, and `certificates` / `uploads` not public. The code now logs
+the fixed failure code(s) to the server log as `[health] storage unhealthy: <codes>` (never a value), so the next failure names its cause in the Vercel
+runtime logs without a super-admin session. Read the `storage` line in `/admin/health` once to get the code, then use the table above.
+
+**Update (Phase 20, 31 Oct 2026).** `/api/health` still fails on `storage` alone (every other check, including all 16 indexes, passes). The failed check took about 1.1 s, which
+means Supabase answered: a malformed URL or key, a project mismatch or a missing variable are rejected locally in milliseconds, and the probe times out at 8 s. So the cause is one of
+`unauthorized` (the key), `bucket-missing(certificates)` / `bucket-missing(uploads)` (the private buckets were never created), or all four buckets missing (the variables point at a different, empty
+project). `docs/RELEASE-EVENT-CREATOR.md` has the table that maps each code to the exact dashboard action. `tests/emulator/health-storage-failure.test.ts` pins each of these: the check fails,
+an anonymous caller sees pass/fail only, the server log carries the fixed code, and neither the URL nor the key appears anywhere.
+
+**Update (Task 2, 2 Nov 2026).** Production `/api/health` was read again (HTTP 503, 12.5 s): every check passes except `storage`, which fails after 1.2 s, so
+Supabase answers and the two variables are present (a missing, half-set or malformed pair fails locally in milliseconds). The Vercel project has `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` under the right names in Production and Preview (`SUPABASE_ANON_KEY` in Production only; the app does not read it; no Development variables). Both are Vercel
+"sensitive" variables, so their values cannot be read back, and the cause is still one of `unauthorized`, `bucket-missing(certificates|uploads)` or a wrong-project key - read the code with
+`npm run verify:storage` or the `storage` line of `/admin/health`. Two defects in the code were found and fixed regardless of that cause:
+
+* **Storage failures surfaced as a 500.** Only a missing bucket had a deliberate answer; a rejected key, a paused or unreachable project, a timeout, or an unconfigured deployment
+  (`StorageNotConfiguredError`) reached the API handler as an unrecognised error. `src/server/storage/guard.ts` now turns every failure of `storeUpload`, `createSignedUrl` and
+  `deleteFile(s)` into a 503 (`storage-unavailable`, or `storage-disabled` with the "paste an https:// image URL" advice for an unconfigured deployment or a missing bucket), keeps a
+  Supabase 413/415 as a 413/415, and logs one fixed code (`[storage] upload failed: unauthorized (uploads)`) - never the Supabase message, URL, key or path.
+* **No timeout.** The Supabase client has none, so a project that accepts the connection and never answers held a request until the platform killed it. The client now gives up after
+  20 s (`STORAGE_REQUEST_TIMEOUT_MS`), which the upload route (30 s) can still answer.
+
+`/api/health` keeps its contract (`ok`, `checks`, 200 when everything passes, 503 otherwise) and adds `status` (`ok` | `degraded` | `down`), `application.available` and `services` (`application`,
+`firebase`, `storage`, `payments`: `ok` | `failing` | `disabled`). Storage or payments failing is `degraded` (the app is up, one capability is not); Firestore, Auth, the Admin SDK or the environment
+failing is `down`. Both answer 503 so a status-code monitor still alerts. Each check now has a time limit (20 s; 40 s for the index probe), so a dependency that hangs fails instead of holding the endpoint.
+`storage` that is deliberately not configured reads `disabled`, not `ok`.
+
+Tests: `tests/unit/storage-supabase-http.test.ts` runs the real `@supabase/supabase-js` client against a local server that speaks the Storage REST API (upload, public and signed retrieval, deletion,
+rejected key, missing bucket, size and type refusals, a 5xx, a server that never answers); `storage-guard`, `health-report`, `uploads-api` (storage-down cases) and `health-status` cover the rest.
+They prove the code; they cannot prove the production project's key or buckets.
+
 ## Recovering
 
 1. Open `/admin/health` as a super admin and read the `storage` line.

@@ -1,4 +1,5 @@
 import { supabaseAdmin, type BucketName } from "./client";
+import { guardStorage } from "./guard";
 
 /** A day is a sane default for a link someone downloads from a page they are looking at right now. */
 export const DEFAULT_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24;
@@ -13,8 +14,9 @@ export const DEFAULT_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24;
  * renders a certificate on demand rather than trusting a stored link to
  * still be good.
  */
-export const createSignedUrl = async (bucket: BucketName, path: string, expiresInSeconds: number = DEFAULT_SIGNED_URL_TTL_SECONDS): Promise<string> => {
-  const { data, error } = await supabaseAdmin().storage.from(bucket).createSignedUrl(path, expiresInSeconds);
-  if (error || !data?.signedUrl) throw error ?? new Error("Supabase returned no signed URL.");
-  return data.signedUrl;
-};
+export const createSignedUrl = async (bucket: BucketName, path: string, expiresInSeconds: number = DEFAULT_SIGNED_URL_TTL_SECONDS): Promise<string> =>
+  guardStorage("sign", bucket, async () => {
+    const { data, error } = await supabaseAdmin().storage.from(bucket).createSignedUrl(path, expiresInSeconds);
+    if (error || !data?.signedUrl) throw error ?? new Error("Supabase returned no signed URL.");
+    return data.signedUrl;
+  });

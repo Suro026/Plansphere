@@ -45,6 +45,22 @@ export const PUBLIC_BUCKETS: ReadonlySet<BucketName> = new Set([BUCKETS.eventAss
 
 export const isPublicBucket = (bucket: BucketName): boolean => PUBLIC_BUCKETS.has(bucket);
 
+/**
+ * Longest any one Supabase Storage request may take. The client has no timeout of its own, so a project that accepts the
+ * connection and never answers would hold the request until the platform kills the function (30 s on the upload route) and
+ * report nothing useful. 20 s covers the largest accepted upload (10 MB) on a slow link, and still leaves the route room to
+ * answer with a deliberate 503 (see ./guard.ts) before its own limit.
+ */
+export const STORAGE_REQUEST_TIMEOUT_MS = 20_000;
+
+/** `fetch` that gives up after `timeoutMs`, whatever signal the caller already passed. Exported for the tests. */
+export const fetchWithTimeout =
+  (timeoutMs: number = STORAGE_REQUEST_TIMEOUT_MS, base: typeof fetch = (...args) => fetch(...args)): typeof fetch =>
+  (input, init) => {
+    const timeout = AbortSignal.timeout(timeoutMs);
+    return base(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout });
+  };
+
 let cached: SupabaseClient | null = null;
 
 /**
@@ -66,6 +82,7 @@ export const supabaseAdmin = (): SupabaseClient => {
 
   cached = createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: fetchWithTimeout() },
   });
   return cached;
 };

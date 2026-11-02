@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import declaredIndexes from "../../../../firestore.indexes.json";
 import { buildIndexProbe, describeIndex, isMissingIndexError, type DeclaredIndex } from "../../../../scripts/lib/index-probe.mjs";
 import { inspectServiceAccount } from "../../../../scripts/lib/service-account.mjs";
+import { step, summarise, type Step } from "@/server/health-report";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,28 +18,6 @@ export const dynamic = "force-dynamic";
  * Public on purpose: it exposes nothing a caller could not learn from a
  * failing request, and it is the first URL to open when production misbehaves.
  */
-
-interface Step {
-  ok: boolean;
-  ms: number;
-  detail?: Record<string, unknown>;
-  error?: { name: string; message: string };
-}
-
-const describe = (error: unknown) => ({
-  name: error instanceof Error ? error.name : "Error",
-  message: error instanceof Error ? error.message : String(error),
-});
-
-const step = async (run: () => Promise<Record<string, unknown> | void>): Promise<Step> => {
-  const started = Date.now();
-  try {
-    const detail = await run();
-    return { ok: true, ms: Date.now() - started, ...(detail ? { detail } : {}) };
-  } catch (error) {
-    return { ok: false, ms: Date.now() - started, error: describe(error) };
-  }
-};
 
 const mask = (email: string) => {
   const [user = "", domain = ""] = email.split("@");
@@ -163,7 +142,7 @@ export async function GET(request: Request) {
     }
     if (missing.length) throw new Error(`Missing composite indexes: ${missing.join("; ")}`);
     return { probed: declared.length };
-  });
+  }, 40_000);
 
   // 8. Supabase Storage: reachable with the right key, every bucket there, and
   //    each one public or private as the app expects. Skipped (not an error)
@@ -177,7 +156,12 @@ export async function GET(request: Request) {
     const { supabaseAdmin } = await import("@/server/storage/client");
     const report = await diagnoseStorage({ env: process.env, client: supabaseAdmin });
     if (!report.configured) return { configured: false };
-    if (!report.ok) throw new Error(report.problems.map((p) => `${p.code}${p.bucket ? ` (${p.bucket})` : ""}: ${p.message}`).join(" | "));
+    if (!report.ok) {
+      // The public response only says pass/fail. The cause is a fixed code and a bucket name - never a URL, key or
+      // other value - so the server log can carry it, and an operator no longer needs a super-admin session to learn it.
+      console.error("[health] storage unhealthy:", report.problems.map((p) => `${p.code}${p.bucket ? `(${p.bucket})` : ""}`).join(", "));
+      throw new Error(report.problems.map((p) => `${p.code}${p.bucket ? ` (${p.bucket})` : ""}: ${p.message}`).join(" | "));
+    }
     return { configured: true, buckets: report.buckets.map((b) => ({ name: b.name, public: b.public })) };
   });
 
@@ -214,8 +198,19 @@ export async function GET(request: Request) {
   });
 
   const healthy = Object.values(checks).every((c) => c.ok);
+  const { status, services } = summarise(checks);
+  if (!healthy) console.error("[health] failing checks:", Object.entries(checks).filter(([, c]) => !c.ok).map(([name]) => name).join(", "));
   const response = NextResponse.json(
-    { ok: healthy, checkedAt: new Date().toISOString(), detail: verbose ? "full" : "redacted", checks: verbose ? checks : redact(checks) },
+    {
+      ok: healthy,
+      // The route answering at all is the application being available. "down" means it is up but cannot serve data.
+      status,
+      application: { available: true },
+      services,
+      checkedAt: new Date().toISOString(),
+      detail: verbose ? "full" : "redacted",
+      checks: verbose ? checks : redact(checks),
+    },
     { status: healthy ? 200 : 503 },
   );
   response.headers.set("Cache-Control", "no-store");
