@@ -28,7 +28,8 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { GoogleAuth } from "google-auth-library";
-import { compareRules, indexKey, planIndexes } from "./lib/deploy-plan.mjs";
+import { compareRules, planIndexes } from "./lib/deploy-plan.mjs";
+import { applyIndexes, summariseIndexApply } from "./lib/index-deploy.mjs";
 import { describeIndex } from "./lib/index-probe.mjs";
 import { loadServiceAccountOrExit } from "./lib/service-account.mjs";
 
@@ -194,40 +195,23 @@ const deployIndexes = async () => {
   // What already exists, so we only create what is missing.
   const listed = await listIndexes();
   if (listed.error) fail(listed.error);
-  const plan = planIndexes(wanted, listed.indexes);
-  const have = new Set([...plan.ready, ...plan.building, ...plan.needsRepair.map((n) => n.index)].map((i) => indexKey(i.collectionGroup, i.fields)));
 
-  let created = 0;
-  let present = 0;
+  // Only what is missing is created; nothing that exists is changed or deleted. The decision (and the honest outcome,
+  // including every refused create) lives in lib/index-deploy.mjs so a test can drive it with failures.
+  const result = await applyIndexes({
+    wanted,
+    deployed: listed.indexes,
+    create: (index) =>
+      call("POST", `${indexBase}/${index.collectionGroup}/indexes`, {
+        queryScope: index.queryScope ?? "COLLECTION",
+        fields: index.fields.map((f) => (f.arrayConfig ? { fieldPath: f.fieldPath, arrayConfig: f.arrayConfig } : { fieldPath: f.fieldPath, order: f.order })),
+      }),
+    log: (line) => console.log(`  ${line}`),
+  });
 
-  for (const index of wanted) {
-    const k = indexKey(index.collectionGroup, index.fields);
-    if (have.has(k)) {
-      present += 1;
-      continue;
-    }
-
-    const response = await call("POST", `${indexBase}/${index.collectionGroup}/indexes`, {
-      queryScope: index.queryScope ?? "COLLECTION",
-      fields: index.fields.map((f) =>
-        f.arrayConfig ? { fieldPath: f.fieldPath, arrayConfig: f.arrayConfig } : { fieldPath: f.fieldPath, order: f.order },
-      ),
-    });
-
-    if (response.status === 409) {
-      present += 1;
-      continue;
-    }
-    if (!response.ok) {
-      console.error(`    ${index.collectionGroup} ${k}: ${response.json?.error?.message ?? response.status}`);
-      continue;
-    }
-    created += 1;
-    console.log(`  index      building  ${index.collectionGroup}: ${index.fields.map((f) => f.fieldPath).join(", ")}`);
-  }
-
-  console.log(`  indexes    ${created} created, ${present} already present`);
-  if (created) console.log("             new indexes take a few minutes to build; queries using them fail until then");
+  const summary = summariseIndexApply(result);
+  for (const line of summary.lines) (summary.ok ? console.log : console.error)(`  ${line}`);
+  return summary.ok;
 };
 
 /* ───────────── run ───────────── */
@@ -245,7 +229,13 @@ if (doRules) {
   await deployRuleset("firestore", "firestore.rules", "cloud.firestore");
 }
 
-if (doIndexes) await deployIndexes();
+const indexesOk = doIndexes ? await deployIndexes() : true;
+
+// A run that did not finish what it was asked to must not look like one that did: "Done." and exit 0 are for success only.
+if (!indexesOk) {
+  console.error("\n  FINISHED WITH ERRORS - see above. Nothing was rolled back; whatever was created stays.\n");
+  process.exit(1);
+}
 
 console.log("\n  Done.\n");
 process.exit(0);
