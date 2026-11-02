@@ -22,3 +22,9 @@ export const loadActiveMemberships = async (uid: string): Promise<Membership[]> 
   const snapshot = await adminDb().collection(COLLECTIONS.festMembers).where("userId", "==", uid).where("status", "==", "active").limit(500).get();
   return snapshot.docs.map((doc) => parseMembership(doc.id, doc.data())).filter((member): member is Membership => member !== null);
 };
+
+/** Every membership of one fest, whatever its status. The caller decides which ones carry authority. */
+export const loadFestMemberships = async (festId: string): Promise<Membership[]> => {
+  const snapshot = await adminDb().collection(COLLECTIONS.festMembers).where("festId", "==", festId).limit(500).get();
+  return snapshot.docs.map((doc) => parseMembership(doc.id, doc.data())).filter((member): member is Membership => member !== null);
+};

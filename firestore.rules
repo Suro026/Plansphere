@@ -491,7 +491,13 @@ service cloud.firestore {
     match /shifts/{shiftId} {
       // A volunteer sees their own roster; anyone managing the fest sees all.
       allow get: if isOwner(resource.data.userId) || managesFest(resource.data.festId);
-      allow list: if (staffOk() && managesFest(resource.data.festId)) || adminOf(resource.data.festId);
+      // The roster a fest-scoped volunteer's phone asks for is `festId == X and userId == me`, and a fest's staff list the
+      // whole fest. An account that works the fest through an event role holds no legacy fest scope, so neither admits it:
+      // the last line is its own roster and nothing wider. The query must name the caller's own userId (a query for the
+      // whole fest, or for anyone else's shifts, is not provable and is refused) and the membership must be active right
+      // now, so a suspension or revocation ends the read on the next request.
+      allow list: if (staffOk() && managesFest(resource.data.festId)) || adminOf(resource.data.festId)
+                  || (isOwner(resource.data.userId) && activeMember(resource.data.festId));
 
       // Rostering is an admin action — the same person who creates the
       // volunteer's account assigns their post and window.

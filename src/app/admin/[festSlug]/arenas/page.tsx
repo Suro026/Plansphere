@@ -4,10 +4,11 @@ import * as React from "react";
 import { toast } from "sonner";
 import { AdminPage, useFest } from "@/components/shell/admin-shell";
 import { useRepositories } from "@/components/providers";
-import { useStaff } from "@/components/admin/staff-api";
+import { useArenaVolunteers, useAssignArenaVolunteer } from "@/components/admin/arena-volunteers-api";
 import { useFestShifts } from "@/components/admin/hooks";
 import { useFestArenas } from "@/components/live/hooks";
 import type { Arena } from "@/core/models/arena";
+import { ApiClientError } from "@/data/api-client";
 import { Button } from "@/components/ui/button";
 import { Field, Input, NativeSelect } from "@/components/ui/field";
 import { EmptyState, Kick, MetaList, MetaRow, PageHeading, Panel, Skeleton, Tag } from "@/components/ui/primitives";
@@ -22,14 +23,17 @@ export default function ArenasPage() {
   const { fest } = useFest();
   const repos = useRepositories();
   const arenas = useFestArenas(fest.id);
-  const staff = useStaff();
+  const volunteerList = useArenaVolunteers(fest.id);
+  const assignToArena = useAssignArenaVolunteer();
   const shifts = useFestShifts(fest.id);
 
   const [name, setName] = React.useState("");
   const [location, setLocation] = React.useState("");
   const [creating, setCreating] = React.useState(false);
 
-  const volunteers = React.useMemo(() => (staff.data ?? []).filter((s) => s.role === "volunteer" && s.festIds.includes(fest.id)), [staff.data, fest.id]);
+  // Everyone who could score here: event-role volunteers with the scoring duty as well as fest-scoped ones. The server decides
+  // who qualifies (and applies the same rule when it saves), because an event role is not readable from the browser.
+  const volunteers = volunteerList.data ?? [];
 
   const createArena = async () => {
     if (!name.trim()) return;
@@ -74,22 +78,11 @@ export default function ArenasPage() {
     const volunteer = volunteers.find((v) => v.id === userId);
     if (!volunteer) return;
     try {
-      await repos.shifts.create(
-        {
-          festId: fest.id,
-          userId: volunteer.id,
-          post: arena.id,
-          duty: "scoring",
-          date: new Date().toISOString().slice(0, 10),
-          startTime: "00:00",
-          endTime: "23:59",
-          eventIds: [],
-        },
-        volunteer.id,
-      );
-      toast.success(`${volunteer.name} assigned to ${arena.name}`);
-    } catch {
-      toast.error("Couldn't assign that volunteer");
+      const result = await assignToArena.mutateAsync({ arenaId: arena.id, userId: volunteer.id });
+      toast.success(result.alreadyAssigned ? `${volunteer.name} was already assigned to ${arena.name}` : `${volunteer.name} assigned to ${arena.name}`);
+      setAssigning((a) => ({ ...a, [arena.id]: "" }));
+    } catch (error) {
+      toast.error(error instanceof ApiClientError ? error.message : "Couldn't assign that volunteer");
     }
   };
 
@@ -114,7 +107,7 @@ export default function ArenasPage() {
         </div>
       </Panel>
 
-      {arenas.loading || staff.isPending ? (
+      {arenas.loading || volunteerList.isPending ? (
         <Skeleton className="h-64" />
       ) : (arenas.data ?? []).length === 0 ? (
         <EmptyState title="No arenas yet" body="Add one above — a live event needs at least one to group matches by." />
@@ -147,7 +140,7 @@ export default function ArenasPage() {
                     <option value="">Assign a volunteer…</option>
                     {volunteers.map((v) => (
                       <option key={v.id} value={v.id}>
-                        {v.name}
+                        {v.name} · {v.email}
                       </option>
                     ))}
                   </NativeSelect>
@@ -156,7 +149,7 @@ export default function ArenasPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="text-[12px] text-neutral-500">No volunteers on staff yet.</div>
+                <div className="text-[12px] text-neutral-500">{volunteerList.isError ? "Couldn't load the volunteers." : "No volunteers who can score yet. Add one from the Team page with the scoring duty."}</div>
               )}
 
               <div className="mt-4 flex gap-2">
